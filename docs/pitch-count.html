@@ -1059,15 +1059,15 @@ function setTeamName(v){
 
 var SYNC_KEY='chalkside_sync_url';
 
-/* Baked in so a phone handed over at a field needs no setup. Anything saved
-   from Log > Sheet setup wins over this, and clearing that field falls back
-   here rather than turning sync off. */
-var DEFAULT_SYNC_URL='https://script.google.com/macros/s/AKfycbw4_vzjndaZXL6uinIoir7CgowNmp13UNAwGVWzSourthx-8TCXty8BFE4HariTuy_wxA/exec';
-
+/* No endpoint ships in this file. The page is served publicly, so a URL baked
+   in here is a URL anyone can read and POST to, and the script has to accept
+   anonymous requests for the app to work at all. It is entered once in
+   Settings and lives on the device, same as the team name and the roster.
+   With none set the app simply keeps everything local and unsent. */
 function savedSyncUrl(){
   try{ return (localStorage.getItem(SYNC_KEY)||'').trim(); }catch(e){ return ''; }
 }
-function syncUrl(){ return savedSyncUrl()||DEFAULT_SYNC_URL; }
+function syncUrl(){ return savedSyncUrl(); }
 function setSyncUrl(u){ try{ localStorage.setItem(SYNC_KEY,(u||'').trim()); }catch(e){} }
 
 function outingPayload(rec){
@@ -1215,10 +1215,10 @@ function sendUnsent(){
 
 function openSyncSetup(){
   var h='<h2>Google Sheet</h2>'+
-    '<div class="muted" style="margin-bottom:10px">Paste the Apps Script web app URL. '+
-    'Outings are written to a tab named Game Log. Leave it blank to go back to '+
-    'the built in sheet.</div>'+
-    '<input class="fld" id="syncFld" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(syncUrl())+'">'+
+    '<div class="muted" style="margin-bottom:10px">Paste your Apps Script web app URL, '+
+    'the one ending in /exec. Outings are written to a tab named Game Log. '+
+    'Leave it blank and nothing is sent anywhere, outings just stay on this device.</div>'+
+    '<input class="fld" id="syncFld" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(savedSyncUrl())+'">'+
     '<div class="controls" style="padding:14px 0 0">'+
       '<button class="btn" data-close="1">Cancel</button>'+
       '<button class="btn dark" id="syncSave">Save</button>'+
@@ -1599,7 +1599,7 @@ function renderHeaders(){
     ? S.roster.length+' player'+(S.roster.length===1?'':'s')
     : 'Nobody added yet';
 
-  el('settingsSub').textContent=savedSyncUrl()?'Custom sheet in use':'Built-in sheet in use';
+  el('settingsSub').textContent=savedSyncUrl()?'Sheet connected':'No sheet connected';
 }
 
 function renderAll(){ renderCount(); renderTeam(); renderLog(); renderRoster(); renderHeaders(); }
