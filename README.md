@@ -63,8 +63,12 @@ GitHub Pages, served from `main` at https://chalkside.com. The app is at
 `/pitch-count.html`. `CNAME` holds the domain and `robots.txt` disallows
 crawling, as does a `noindex, nofollow` meta in the app itself.
 
-Bump `VERSION` at the top of `sw.js` when what gets cached, or how it is
-served, changes. Nothing else spells the cache name out. A stale service
+Bump `VERSION` at the top of `docs/sw.js` when what gets cached, or how it is
+served, changes. `tools/check-version.sh` enforces it: install it as a pre-push
+hook and a push that changes a cached file without moving `VERSION` is blocked.
+
+    ln -sf ../../tools/check-version.sh .git/hooks/pre-push
+ Nothing else spells the cache name out. A stale service
 worker serves the old build after a successful push, which looks exactly like
 a deploy that failed, and Pages has no build log to check.
 

@@ -6,7 +6,7 @@
    successful push, which is indistinguishable from a deploy that failed. On
    Pages there is no build log to check, so the only symptom is a coach saying
    the app did not change. */
-var VERSION = 4;
+var VERSION = 5;
 var CACHE = 'chalkside-v' + VERSION;
 
 /* ChalkSide service worker.
