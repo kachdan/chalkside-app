@@ -397,12 +397,6 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
    10px margin keeps it 24px clear of the next row below */
 .pickexpand-in .btn{margin-top:24px;}
 
-/* TEMPORARY, belongs with the sync payload log. Remove with it. */
-.payload{
-  margin-top:6px;font-family:inherit;font-size:12.5px;line-height:1.45;
-  color:var(--ink);white-space:pre-wrap;word-break:break-all;
-}
-
 @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
 </style>
 </head>
@@ -523,6 +517,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
       <h2 style="margin-top:24px">Google Sheet</h2>
       <button class="btn wide" id="syncSetupBtn">Sheet setup</button>
       <button class="btn wide" id="sendUnsentBtn" style="margin-top:8px">Send unsent</button>
+      <button class="btn wide" id="restoreBtn" style="margin-top:8px">Restore from sheet</button>
 
       <h2 style="margin-top:24px">Opponent count</h2>
       <div class="card">
@@ -1070,6 +1065,94 @@ function savedSyncUrl(){
 function syncUrl(){ return savedSyncUrl(); }
 function setSyncUrl(u){ try{ localStorage.setItem(SYNC_KEY,(u||'').trim()); }catch(e){} }
 
+/* ---------------- restore from the sheet ----------------
+   The sheet is the only copy of a season that survives a lost phone or a move
+   to a new origin, and localStorage does not travel. This is the read path.
+
+   Deliberate shape:
+   - merge on outing id, so restoring twice adds nothing the second time
+   - purely additive: a local outing the sheet has never seen is never touched
+   - eligibility is never read from the sheet, only recomputed from date and
+     pitches, so a stale eligible column cannot poison rest calculations
+   - nothing here is logged or stored anywhere but S, because these rows carry
+     children's names */
+
+function normName(n){ return String(n==null?'':n).trim().toLowerCase().replace(/\s+/g,' '); }
+
+/* The sheet's headers are human ones, "Name", "Number", "Id", not the field
+   names the app POSTs. logGame writes a positional array under those headers,
+   so the read path cannot assume either spelling. Match on a normalised header
+   and accept both. */
+function sheetField(row,names){
+  for(var k in row){
+    if(!Object.prototype.hasOwnProperty.call(row,k)) continue;
+    var norm=String(k).trim().toLowerCase().replace(/[^a-z]/g,'');
+    for(var i=0;i<names.length;i++){ if(norm===names[i]) return row[k]; }
+  }
+  return '';
+}
+
+function fetchSheetRows(){
+  var url=syncUrl();
+  if(!url) return Promise.reject(new Error('no-url'));
+  var sep=url.indexOf('?')>-1?'&':'?';
+  return fetch(url+sep+'action=list&sheet='+encodeURIComponent('Game Log'))
+    .then(function(r){ if(!r.ok) throw new Error('status'); return r.json(); })
+    .then(function(d){
+      if(!d||d.ok!==true||Object.prototype.toString.call(d.rows)!=='[object Array]'){
+        throw new Error('shape');
+      }
+      return d.rows;
+    });
+}
+
+/* Works out what a restore would do without doing any of it. */
+function planRestore(rows){
+  var here={}; S.outings.forEach(function(o){ here[String(o.id)]=true; });
+  var known={}; S.roster.forEach(function(p){ known[normName(p.name)]=p.id; });
+
+  var add=[], already=0, unreadable=0, newPlayers={};
+  rows.forEach(function(r){
+    var id=String(sheetField(r,['id'])).trim();
+    var date=String(sheetField(r,['date'])).trim();
+    var player=String(sheetField(r,['name','player'])).trim();
+    var pitches=parseInt(sheetField(r,['pitches']),10);
+    /* Strict on the date on purpose. Anything that is not yyyy-mm-dd is
+       counted and shown rather than coerced: a date guessed wrong is a rest
+       calculation wrong, and that fails silently. */
+    if(!id||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!player||isNaN(pitches)||pitches<0){
+      unreadable++; return;
+    }
+    if(here[id]){ already++; return; }
+    var key=normName(player);
+    if(!known[key]&&!newPlayers[key]){
+      newPlayers[key]={name:player,number:String(sheetField(r,['number','jersey'])).trim()};
+    }
+    add.push({id:id,date:date,pitches:pitches,
+              opponent:String(sheetField(r,['opponent'])).trim(),key:key});
+  });
+  return {total:rows.length,add:add,already:already,unreadable:unreadable,
+          newPlayers:newPlayers,newPlayerCount:Object.keys(newPlayers).length};
+}
+
+function commitRestore(plan){
+  var known={}; S.roster.forEach(function(p){ known[normName(p.name)]=p.id; });
+  var stamp=Date.now(), n=0;
+  Object.keys(plan.newPlayers).forEach(function(k){
+    var np=plan.newPlayers[k];
+    var id='p'+stamp+'_'+(n++)+Math.floor(Math.random()*99);
+    S.roster.push({id:id,name:np.name,number:np.number});
+    known[k]=id;
+  });
+  if(n) sortRoster();
+  plan.add.forEach(function(a){
+    /* synced true: it came out of the sheet, so it is already in the sheet */
+    S.outings.push({id:a.id,pitcherId:known[a.key],date:a.date,
+                    pitches:a.pitches,opponent:a.opponent,synced:true});
+  });
+  save(); renderAll();
+}
+
 function outingPayload(rec){
   var p=S.roster.filter(function(r){return r.id===rec.pitcherId;})[0];
   /* Clear date is the day's, not this row's. rec is already in S.outings by
@@ -1088,55 +1171,17 @@ function outingPayload(rec){
   };
 }
 
-/* ---------------- TEMPORARY sync payload log ----------------
-   Here to find out why a delete leaves a half filled row in Game Log. Records
-   the exact object handed to JSON.stringify on every POST, both to the console
-   and to a capped list readable from Log > Sheet setup > Show what was sent,
-   so it can be read on a phone without attaching Web Inspector.
-   Remove this block, its two call sites, the button and the .payload rule once
-   the payload is understood. */
-var SYNCLOG_KEY='chalkside_synclog_v1';
-
-function noteSync(body){
-  try{ console.log('[chalkside sync] POST body:', JSON.stringify(body)); }catch(e){}
-  try{
-    var a=syncPayloads();
-    a.push({at:new Date().toISOString(), body:body});
-    while(a.length>25) a.shift();
-    localStorage.setItem(SYNCLOG_KEY,JSON.stringify(a));
-  }catch(e){}
-}
-function syncPayloads(){
-  try{
-    var a=JSON.parse(localStorage.getItem(SYNCLOG_KEY)||'[]');
-    return Object.prototype.toString.call(a)==='[object Array]'?a:[];
-  }catch(e){ return []; }
-}
-function openSyncPayloads(){
-  var a=syncPayloads();
-  var h='<h2>What was sent</h2>'+
-    '<div class="muted" style="margin-bottom:10px">Newest first. This is the exact '+
-    'object posted to the sheet.</div>';
-  if(!a.length) h+='<div class="empty">Nothing has been sent yet.</div>';
-  else h+=a.slice().reverse().map(function(r){
-    return '<div class="card"><div class="muted">'+esc(r.at)+'</div>'+
-      '<div class="payload">'+esc(JSON.stringify(r.body))+'</div></div>';
-  }).join('');
-  h+='<button class="btn wide" id="payClear" style="margin-top:6px">Clear this list</button>'+
-     '<button class="btn wide" style="margin-top:8px" data-close="1">Close</button>';
-  el('sheetInner').innerHTML=h;
-  openSheet();
-  el('payClear').addEventListener('click',function(){
-    try{ localStorage.removeItem(SYNCLOG_KEY); }catch(e){}
-    openSyncPayloads();
-  });
-}
+/* Nothing about a sync payload is logged or stored. A payload carries a
+   child's name and number, so the debugging recorder that used to live here,
+   which wrote every POST body to the console and kept 25 of them in
+   localStorage, is gone. The line below clears what it left behind on devices
+   that ran it. */
+try{ localStorage.removeItem('chalkside_synclog_v1'); }catch(e){}
 
 function pushToSheet(rec){
   var url=syncUrl();
   if(!url) return;
   var body=outingPayload(rec);
-  noteSync(body);
   try{
     fetch(url,{
       method:'POST',
@@ -1178,7 +1223,6 @@ function pushDelete(id){
   var url=syncUrl();
   if(!url) return;
   var body={action:'delete',id:id,sheet:'Game Log'};
-  noteSync(body);
   try{
     fetch(url,{
       method:'POST',
@@ -1213,6 +1257,76 @@ function sendUnsent(){
   alert('Sending '+parts.join(' and ')+'.');
 }
 
+/* Counts, not a wall of rows. The only names shown are players who would be
+   added to the roster, because that is the part a coach has to agree to. */
+function openRestore(){
+  if(!syncUrl()){
+    el('sheetInner').innerHTML='<h2 class="sheetTitle">Restore from sheet</h2>'+
+      '<div class="muted">This needs your Apps Script URL first. Add it under '+
+      'Sheet setup, then come back.</div>'+
+      '<button class="btn dark wide" style="margin-top:14px" id="restoreToSetup">Open Sheet setup</button>'+
+      '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
+    openSheet();
+    el('restoreToSetup').addEventListener('click',openSyncSetup);
+    return;
+  }
+
+  el('sheetInner').innerHTML='<h2 class="sheetTitle">Restore from sheet</h2>'+
+    '<div class="muted">Reading Game Log\u2026</div>';
+  openSheet();
+
+  fetchSheetRows().then(function(rows){
+    var plan=planRestore(rows);
+    var h='<h2 class="sheetTitle">Restore from sheet</h2>';
+
+    if(!plan.add.length){
+      h+='<div class="muted">'+plan.total+' row'+(plan.total===1?'':'s')+' in the sheet. '+
+         plan.already+' already on this device'+
+         (plan.unreadable?(', '+plan.unreadable+' could not be read'):'')+
+         '. Nothing to bring back.</div>';
+      h+='<button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
+      el('sheetInner').innerHTML=h;
+      return;
+    }
+
+    h+='<div class="prevrow"><span class="nm">In the sheet</span><span class="num">'+plan.total+'</span></div>'+
+       '<div class="prevrow"><span class="nm">Already on this device</span><span class="num">'+plan.already+'</span></div>'+
+       '<div class="prevrow"><span class="nm"><b>Will be added</b></span><span class="num"><b>'+plan.add.length+'</b></span></div>';
+    if(plan.unreadable){
+      h+='<div class="prevrow"><span class="nm">Could not be read, skipped</span><span class="num">'+plan.unreadable+'</span></div>';
+    }
+    if(plan.newPlayerCount){
+      h+='<div class="prevbad"><b>'+plan.newPlayerCount+' player'+(plan.newPlayerCount===1?'':'s')+
+         '</b> in those outings '+(plan.newPlayerCount===1?'is':'are')+' not on your roster and '+
+         (plan.newPlayerCount===1?'will be added':'will be added')+':'+
+         Object.keys(plan.newPlayers).map(function(k){
+           var np=plan.newPlayers[k];
+           return '<div class="line">'+esc((np.number?np.number+'  ':'')+np.name)+'</div>';
+         }).join('')+'</div>';
+    }
+    h+='<div class="muted" style="margin-top:12px">Nothing already on this device is '+
+       'changed or removed.</div>'+
+       '<button class="btn dark wide" style="margin-top:14px" id="restoreGo">Restore '+
+       plan.add.length+' outing'+(plan.add.length===1?'':'s')+'</button>'+
+       '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
+    el('sheetInner').innerHTML=h;
+    el('restoreGo').addEventListener('click',function(){
+      commitRestore(plan);
+      el('sheetInner').innerHTML='<h2 class="sheetTitle">Restore from sheet</h2>'+
+        '<div class="muted">Brought back '+plan.add.length+' outing'+(plan.add.length===1?'':'s')+
+        (plan.newPlayerCount?(' and added '+plan.newPlayerCount+' player'+(plan.newPlayerCount===1?'':'s')):'')+
+        '.</div><button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
+    });
+  }).catch(function(err){
+    var why=(err&&err.message==='no-url')?'No sheet URL is set.':
+            (err&&err.message==='shape')?'The sheet answered, but not with a row list. The script may not have the restore code yet.':
+            'Could not reach the sheet. Check the URL under Sheet setup, and that you have signal.';
+    el('sheetInner').innerHTML='<h2 class="sheetTitle">Restore from sheet</h2>'+
+      '<div class="muted">'+esc(why)+'</div>'+
+      '<button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
+  });
+}
+
 function openSyncSetup(){
   var h='<h2>Google Sheet</h2>'+
     '<div class="muted" style="margin-bottom:10px">Paste your Apps Script web app URL, '+
@@ -1222,12 +1336,9 @@ function openSyncSetup(){
     '<div class="controls" style="padding:14px 0 0">'+
       '<button class="btn" data-close="1">Cancel</button>'+
       '<button class="btn dark" id="syncSave">Save</button>'+
-    '</div>'+
-    /* TEMPORARY, with the sync payload log */
-    '<button class="btn wide" id="syncShow" style="margin-top:14px">Show what was sent</button>';
+    '</div>';
   el('sheetInner').innerHTML=h;
   openSheet();
-  el('syncShow').addEventListener('click',openSyncPayloads);
   el('syncSave').addEventListener('click',function(){
     setSyncUrl(el('syncFld').value);
     closeSheet();
@@ -1358,6 +1469,7 @@ el('s-log').addEventListener('click',function(e){
 });
 el('syncSetupBtn').addEventListener('click',openSyncSetup);
 el('sendUnsentBtn').addEventListener('click',sendUnsent);
+el('restoreBtn').addEventListener('click',openRestore);
 el('addManual').addEventListener('click',function(){
   if(!S.roster.length){ go('roster'); return; }
   var h='<h2>Add a past outing</h2>'+
