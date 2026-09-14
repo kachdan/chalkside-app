@@ -1,0 +1,5 @@
+.DS_Store
+files.zip
+node_modules/
+*.log
+.vscode/*.local.json
