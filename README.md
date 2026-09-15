@@ -65,15 +65,24 @@ https://chalkside.com. The app is at
 crawling, as does a `noindex, nofollow` meta in the app itself.
 
 Bump `VERSION` at the top of `docs/sw.js` when what gets cached, or how it is
-served, changes. `tools/check-version.sh` enforces it: install it as a pre-push
-hook and a push that changes a cached file without moving `VERSION` is blocked.
+served, changes. Ordinary app changes do not need it: `docs/pitch-count.html`
+is stale-while-revalidate and reaches phones by itself, one app open later.
+
+`tools/check-version.sh` enforces the part that cannot self-heal. Install it as
+a pre-push hook:
 
     ln -sf ../../tools/check-version.sh .git/hooks/pre-push
 
 Hooks are local and a clone does not carry them, so run that line after a fresh
-clone. Nothing else spells the cache name out, and a stale worker serves the old
-build after a successful push, which looks exactly like a deploy that failed.
-Pages has no build log to check, so the only symptom is the app not changing.
+clone. It blocks a push that changes the manifest, an icon, or the `SHELL` list
+in `sw.js` without moving `VERSION`. Those are served cache-first, so a phone
+that already installed never refetches them while the cache name is the same.
+It deliberately ignores `docs/pitch-count.html`; guarding that would force a
+bump on every deploy and stale-while-revalidate would stop buying anything.
+
+Nothing else spells the cache name out, and a stale worker serves the old build
+after a successful push, which looks exactly like a deploy that failed. Pages
+has no build log to check, so the only symptom is the app not changing.
 
 ## Conventions
 
