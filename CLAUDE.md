@@ -89,6 +89,11 @@ keep the pill treatment.
 - All state in `localStorage`, keyed and versioned (`pitchcount_v1`).
 - Never lose data on a failed network call. Mark the record unsent and offer a
   retry. A quietly dropped outing is the worst possible bug in this app.
+- **Recoverable from observation.** Any state the app holds about the game must
+  be re-settable from something a distracted coach can see in one glance at the
+  field. Not reconstructed, not undone step by step. Looked at, and corrected in
+  a tap. He is interrupted constantly and will look up having lost the thread;
+  what he can still see is who is on the mound and who is behind the plate.
 - **No roster ships in source.** The app boots empty and is filled from
   Settings > Roster by pasting a team list. No player name, jersey number or
   team name belongs in either file, because this is headed for a public repo.
@@ -264,6 +269,33 @@ The last one is the reason for the rule. It would have shipped green.
 
 Intent files live in https://github.com/kachdan/chalkside-intent (private), one
 per ticket, written before the work starts.
+
+### Name what you measured
+
+Verified against something real includes knowing **which** real thing. Start
+every browser verification run with:
+
+    tools/serve.sh [port]
+
+It refuses to start on a bound port and prints the URL, the directory, the pid
+and the commit before anything is measured. This is not ceremony. An
+`http.server` left over from an earlier session once kept port 8000 and a whole
+verification run measured the archive repo instead of this one; the only reason
+it surfaced was a function coming back undefined. A run that cannot say what it
+measured did not verify anything.
+
+### Always run the resume path
+
+Two bugs have come from the same place: the app crossing midnight, and an iOS
+PWA resumed from the app switcher without re-executing the script. CHALK-101
+was one, the CHALK-108 sequence mislabel was the other. Neither is visible to
+reasoning and neither appears on a cold load.
+
+So it is a standing step, not something to remember: set `S.game.date` to
+yesterday, resume, and check what carried. Note that `document.visibilityState`
+is `hidden` while a tab is driven by automation, so the `visibilitychange`
+handler early-returns; call `rolloverIfNewDay()` directly or the test proves
+nothing.
 
 ## Handoff (standing rule)
 
