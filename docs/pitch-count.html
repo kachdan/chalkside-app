@@ -455,7 +455,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
       <!-- The stepper is the only thing on this tab you actually operate, and
            it is tapped every inning, so it goes first. The list below is a
            read only summary that also appears on the Count screen. -->
-      <h2>Innings caught today</h2>
+      <h2>Innings caught this game</h2>
       <p class="muted" style="margin:-6px 0 2px">Tap + when a player finishes an inning behind the plate.</p>
       <p class="muted" style="margin:0 0 12px">More than 3 innings behind the plate and he cannot pitch in this game.</p>
       <div id="catchList"></div>
@@ -535,8 +535,8 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
       </div>
 
       <h2 style="margin-top:24px">Game</h2>
-      <button class="btn wide" id="newGameBtn">Start new game</button>
-      <p class="muted" style="margin-top:10px">Clears the pitch count and the innings caught. The outing log is kept.</p>
+      <button class="btn wide" id="endGameBtn">End game</button>
+      <p class="muted" style="margin-top:10px">Logs whatever is on the counter, then clears the pitch count and the innings caught for the next game. The outing log is kept.</p>
 
       <h2 style="margin-top:24px">Data</h2>
       <button class="btn wide" id="wipeBtn">Clear everything</button>
@@ -626,12 +626,34 @@ function pretty(s){
 
 /* ---------------- the rules ---------------- */
 var MAX=75;
+
+/* CHALK-108. The rulebook scopes the mound restriction to a GAME: a pitcher
+   who came off in game one may pitch in game two, subject to the 75 day cap
+   and the rest brackets. This app refuses him for the rest of the DAY instead.
+
+   That is stricter than the rules require. It is deliberate, it is Dan's call
+   and not the code's, and CHALK-108 deliberately did not change the answer,
+   only made the scopes real underneath it.
+
+   Flipping this to false is a RULES decision, not a refactor, and on its own
+   it is NOT enough to reach rulebook behaviour: eligibleDate() adds a day even
+   when zero rest is owed, so a 25 pitch outing still reads as unavailable
+   until tomorrow. Both would have to move together, deliberately. */
+var DAY_SCOPED_MOUND=true;
 var BRACKETS=[{max:30,days:0},{max:45,days:1},{max:60,days:2},{max:9999,days:3}];
 function restDays(p){
   if(p<=0) return 0;
   for(var i=0;i<BRACKETS.length;i++) if(p<=BRACKETS[i].max) return BRACKETS[i].days;
   return 3;
 }
+/* Rest days start the day after the outing, so the clear date is the day after
+   the last of them: 77 on Sep 14 owes 3 days, Sep 15 16 17, and he is clear on
+   Sep 18.
+
+   The +1 is unconditional, so zero rest still reads as clear tomorrow rather
+   than later the same day. That is the second place the app is stricter than
+   the rulebook, alongside DAY_SCOPED_MOUND, and it is left alone on purpose.
+   See the note there before changing either. */
 function eligibleDate(dateStr,pitches){
   return addDays(dateStr,restDays(pitches)+1);
 }
@@ -690,23 +712,54 @@ function pitchedToday(pid){
   return null;
 }
 
+/* CHALK-108. Off the mound means done pitching for THIS GAME, even after one
+   pitch. Same date is not enough: game one must not speak for game two. */
+function pitchedThisGame(pid){
+  if(!gameIsToday()) return null;
+  var seq=currentSeq();
+  for(var i=0;i<S.outings.length;i++){
+    var o=S.outings[i];
+    if(o.pitcherId!==pid||o.date!==S.game.date) continue;
+    var g=outingSeq(o);
+    if(g===null||g===seq) return o;
+  }
+  return null;
+}
+
 /* Reached the daily limit, whether that outing is finished or still running. */
 function hitMaxToday(pid){
   return dayTotal(pid)>=MAX;
 }
 
+/* Three rules, three scopes. This is the whole of CHALK-108:
+
+     off the mound means done pitching  -> GAME
+     more than 3 innings caught blocks  -> GAME
+     75 and the rest brackets           -> DATE, summed across every outing
+
+   Each one is asked of the thing it is actually scoped to. Nothing here reads
+   rest from a game. */
 function pitchEligibility(pid){
-  /* Once he comes off the mound he is done pitching for the game, so this
-     outranks the rest calculation: a short outing still ends his day. */
-  if(pitchedToday(pid)){
+  /* GAME. A short outing still ends his game, so this outranks the rest
+     calculation. */
+  if(pitchedThisGame(pid)){
+    return {ok:false,why:'Already pitched in this game, cannot return to the mound',
+            tag:'Pitched',cls:'no'};
+  }
+  /* DAY. The house rule above, kept deliberately. Without it a pitcher who
+     came off in game one would become available again in game two, which the
+     rulebook allows and this app does not. */
+  if(DAY_SCOPED_MOUND&&pitchedToday(pid)){
     return {ok:false,why:'Already pitched today, cannot return to the mound',
             tag:'Pitched today',cls:'no'};
   }
-  var cg=caughtToday(pid);
+  /* GAME. */
+  var cg=caughtThisGame(pid);
   if(cg>3){
-    return {ok:false,why:'Caught '+cg+' innings today, not eligible to pitch',
+    return {ok:false,why:'Caught '+cg+' innings in this game, not eligible to pitch',
             tag:'Caught '+cg+' in',cls:'no'};
   }
+  /* DATE. */
   var a=availability(pid);
   return {ok:a.ok,why:a.text,tag:a.tag,cls:a.cls};
 }
@@ -718,7 +771,24 @@ function pitchEligibility(pid){
 function gameIsToday(){
   return !!(S.game&&S.game.date===todayStr());
 }
-function caughtToday(pid){
+
+/* CHALK-108. A game is a date plus a sequence number for that date, so the
+   same-game rules can tell game one from game two while the date rules keep
+   seeing the whole day.
+
+   The sequence is for correctness only and is never shown to a coach. The
+   season has no two-game day, so a game switcher would be UI for a situation
+   that does not occur. */
+function currentSeq(){
+  return (gameIsToday()&&S.game.seq)?S.game.seq:1;
+}
+/* Outings logged before CHALK-108 carry no game. They are read as belonging to
+   the game in progress, which blocks rather than permits, and is exactly what
+   the app did before this ticket. The stored log is never rewritten. */
+function outingSeq(o){
+  return (o.game===undefined||o.game===null||o.game==='')?null:+o.game;
+}
+function caughtThisGame(pid){
   if(!gameIsToday()||!S.game.catchers) return 0;
   return S.game.catchers[pid]||0;
 }
@@ -842,7 +912,8 @@ function selectRow(id){
 }
 
 function startOuting(id){
-  S.game={date:todayStr(),pitcherId:id,count:0,marks:[],
+  /* same game, new pitcher: the sequence and the catcher tally both carry */
+  S.game={date:todayStr(),seq:currentSeq(),pitcherId:id,count:0,marks:[],
           catchers:carriedCatchers()};
   pickedId=null;
   save(); renderAll();
@@ -1027,14 +1098,18 @@ el('sheet').addEventListener('click',function(e){
       if(!confirm('End the current outing and log '+S.game.count+' pitches?')) return;
       commitOuting();
     }
-    S.game={date:todayStr(),pitcherId:id,count:0,marks:[],catchers:carriedCatchers()};
+    S.game={date:todayStr(),seq:currentSeq(),pitcherId:id,count:0,marks:[],catchers:carriedCatchers()};
     save(); closeSheet(); renderCount();
   }
 });
 
 function commitOuting(){
   if(!S.game||S.game.count<=0) return;
+  /* game is local only. outingPayload maps the sheet's columns explicitly, so
+     this never reaches it: the Game Log is positional and a new column would
+     shift every field after it across a season. */
   var rec={id:'o'+Date.now(),pitcherId:S.game.pitcherId,date:S.game.date,
+           game:currentSeq(),
            pitches:S.game.count,opponent:(S.game.opponent||''),synced:false};
   S.outings.push(rec);
   save();
@@ -1350,7 +1425,9 @@ function endOuting(){
   var p=activePlayer();
   if(!confirm('Log '+S.game.count+' pitches for '+(p?p.name:'this pitcher')+'?')) return;
   commitOuting();
-  S.game={date:todayStr(),pitcherId:null,count:0,marks:[],catchers:carriedCatchers()};
+  /* the outing ends, the game does not */
+  S.game={date:todayStr(),seq:currentSeq(),pitcherId:null,count:0,marks:[],
+          catchers:carriedCatchers()};
   save(); renderAll(); go('team');
 }
 
@@ -1370,7 +1447,7 @@ function renderTeam(){
   }).join('');
 
   el('catchList').innerHTML=S.roster.map(function(p){
-    var n=caughtToday(p.id);
+    var n=caughtThisGame(p.id);
     /* He may stay in the game after reaching the pitch limit, anywhere except
        behind the plate, so adding innings to him is refused. */
     var maxed=hitMaxToday(p.id);
@@ -1391,7 +1468,7 @@ function renderTeam(){
 }
 el('s-team').addEventListener('click',function(e){
   var b=e.target.closest('[data-c]'); if(!b) return;
-  if(!S.game) S.game={date:todayStr(),pitcherId:null,count:0,marks:[],catchers:{}};
+  if(!S.game) S.game={date:todayStr(),seq:1,pitcherId:null,count:0,marks:[],catchers:{}};
   if(!S.game.catchers) S.game.catchers={};
   var id=b.dataset.id;
   /* refuse in the handler too, so a stale render cannot get one past */
@@ -1647,14 +1724,22 @@ el('rosterList').addEventListener('click',function(e){
 el('oppPlus').addEventListener('click',function(){S.opp++;save();renderRoster();});
 el('oppMinus').addEventListener('click',function(){S.opp=Math.max(0,S.opp-1);save();renderRoster();});
 el('oppReset').addEventListener('click',function(){S.opp=0;save();renderRoster();});
-el('newGameBtn').addEventListener('click',function(){
-  if(!confirm('Start a new game? The pitch count and the innings caught are cleared. The outing log is kept.')) return;
+/* CHALK-108. Ending a game commits whatever is on the counter and opens the
+   next one on the same date. The same-game rules start clean; rest, which is
+   date-scoped, keeps seeing the whole day and is untouched by this. */
+function endGame(){
   /* an outing still on the counter is real and goes to the log rather than
      being lost to the reset */
   commitOuting();
-  S.game={date:todayStr(),pitcherId:null,count:0,marks:[],catchers:{}};
+  S.game={date:todayStr(),seq:(gameIsToday()?currentSeq()+1:1),
+          pitcherId:null,count:0,marks:[],catchers:{}};
   pickedId=null;
-  save(); renderAll(); go('count');
+  save();
+}
+el('endGameBtn').addEventListener('click',function(){
+  if(!confirm('End this game? Anything on the counter is logged, then the pitch count and the innings caught are cleared. The outing log is kept.')) return;
+  endGame();
+  renderAll(); go('count');
 });
 el('wipeBtn').addEventListener('click',function(){
   if(!confirm('Delete the roster and every logged outing? This cannot be undone.')) return;
@@ -1721,7 +1806,7 @@ function renderAll(){ renderCount(); renderTeam(); renderLog(); renderRoster(); 
 function rolloverIfNewDay(){
   if(!S.game||S.game.date===todayStr()) return false;
   commitOuting();
-  S.game={date:todayStr(),pitcherId:null,count:0,marks:[],catchers:{}};
+  S.game={date:todayStr(),seq:1,pitcherId:null,count:0,marks:[],catchers:{}};
   pickedId=null;
   save();
   return true;
@@ -1734,6 +1819,10 @@ document.addEventListener('visibilitychange',function(){
   if(document.visibilityState!=='visible') return;
   if(rolloverIfNewDay()) renderAll();
 });
+
+/* A game in progress from before CHALK-108 has no sequence. It is game one of
+   its date. S.game only: the outing log is not rewritten. */
+if(S.game&&!S.game.seq) S.game.seq=1;
 
 rolloverIfNewDay();
 renderAll();
