@@ -8,7 +8,7 @@ Domains owned: chalkside.com, chalkside.net, chalkside.org.
 | Repo | What it is |
 | --- | --- |
 | `kachdan/chalkside-app` | **Public. The working repo.** Served at chalkside.com by GitHub Pages from `/docs`. All app work happens here. |
-| `kachdan/chalkside` | **Private, archived, frozen.** Its history cannot be made public, which is why this repo was started from a fresh one. Do not commit there. |
+| `kachdan/chalkside` | **Private, archived, frozen.** Its history cannot be made public, which is why this repo was started from a fresh one. Do not commit there. Its Netlify build is **not a fallback**, see below. |
 | `kachdan/chalkside-intent` | **Private.** One intent file per ticket, written before the work starts. See Definition of done. |
 
 This file lives in chalkside-app, at the repo root and not in `/docs`, so it is
@@ -221,6 +221,12 @@ coach saying the app does not work.
 
 Pages is free, so a deploy costs nothing. The Netlify budget that used to gate
 this belonged to the archive repo and no longer applies.
+
+**There is no fallback.** The old Netlify site still resolves, and it is not a
+safety net: it has the archived Apps Script URL compiled in, so it cannot reach
+the sheet at all. Never reason about it as a standby, never suggest pointing a
+coach at it, and never let "the Netlify copy still works" enter a deploy
+decision. If chalkside.com is down on a game day the answer is paper.
 
 ## Pushing (hard rule)
 
