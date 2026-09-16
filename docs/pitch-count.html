@@ -519,6 +519,10 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
       <button class="btn wide" id="sendUnsentBtn" style="margin-top:8px">Send unsent</button>
       <button class="btn wide" id="restoreBtn" style="margin-top:8px">Restore from sheet</button>
 
+      <h2 style="margin-top:24px">Schedule</h2>
+      <button class="btn wide" id="schedBtn">Schedule setup</button>
+      <p class="muted" id="schedSub" style="margin-top:10px"></p>
+
       <h2 style="margin-top:24px">Opponent count</h2>
       <div class="card">
         <div class="row" style="justify-content:space-between">
@@ -691,6 +695,74 @@ function dayTotal(pid){
   if(S.game&&S.game.date===todayStr()&&S.game.pitcherId===pid) n+=S.game.count;
   return n;
 }
+/* ---------------- CHALK-117, the schedule ----------------
+   The app answers "clear Sep 18". What a coach needs, standing on a field, is
+   whether that is before or after the next game. Same fact, different answer.
+
+   The feed is a CACHE and never a source of truth. Eligibility is always
+   recomputed from date and pitches; the schedule only changes the wording. */
+var SCHED_KEY='chalkside_schedule_v1';
+function schedule(){
+  try{
+    var v=JSON.parse(localStorage.getItem(SCHED_KEY)||'[]');
+    return Object.prototype.toString.call(v)==='[object Array]'?v:[];
+  }catch(e){ return []; }
+}
+function setSchedule(list){
+  try{ localStorage.setItem(SCHED_KEY,JSON.stringify(list||[])); }catch(e){}
+}
+
+/* John posts slots before it is known whether they are a practice or a game,
+   so a third answer is required and "unknown" is not a failure. Guessing is.
+   Practice is tested first: "Practice vs Ridge" is a practice. */
+function eventKind(title){
+  var t=' '+String(title==null?'':title).toLowerCase().replace(/\s+/g,' ')+' ';
+  if(/practice|scrimmage|workout|clinic|cage|bullpen/.test(t)) return 'practice';
+  if(/tbd|tba|placeholder|to be |\?/.test(t)) return 'unknown';
+  if(/ vs\.? | v\.? | @ | at |game/.test(t)) return 'game';
+  return 'unknown';
+}
+
+/* The next date carrying a game, or null when we cannot say.
+
+   CHALK-117's recorded decision: show the next GAME only, and when the next
+   entry is ambiguous say nothing rather than guess. So an ambiguous day STOPS
+   the search instead of being skipped. Skipping it would name a later date as
+   "the next game" while this one may well be the real one, and "misses
+   Thursday" about a practice is a confident wrong answer delivered during a
+   game. Silence just leaves a coach where he is today. */
+function nextGameDate(){
+  var evs=schedule();
+  if(!evs.length) return null;
+  var t=todayStr(), byDate={}, dates=[];
+  evs.forEach(function(e){
+    var d=String(e&&e.date||'');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||d<t) return;
+    if(!byDate[d]){ byDate[d]=[]; dates.push(d); }
+    byDate[d].push(e);
+  });
+  dates.sort();
+  for(var i=0;i<dates.length;i++){
+    var hasGame=false, hasUnknown=false;
+    byDate[dates[i]].forEach(function(e){
+      if(e.kind==='unknown') hasUnknown=true;
+      else if(e.kind==='game') hasGame=true;
+    });
+    if(hasUnknown) return null;
+    if(hasGame) return dates[i];
+  }
+  return null;
+}
+
+/* "Thu" is only unambiguous inside a week. Past that it needs the date. */
+function whenLabel(date){
+  var t=todayStr();
+  if(date===t) return 'today';
+  if(date===addDays(t,1)) return 'tomorrow';
+  if(date<addDays(t,7)) return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][parseD(date).getDay()];
+  return pretty(date);
+}
+
 function availability(pid){
   var d=lastPitchingDay(pid);
   if(!d) return {ok:true,text:'Fresh, no outings logged',tag:'Available',cls:'ok'};
@@ -699,6 +771,20 @@ function availability(pid){
   var need=restDays(d.pitches);
   var sub=d.pitches+' pitches on '+pretty(d.date)+', needs '+need+' day'+(need===1?'':'s');
   if(eligible<=t) return {ok:true,text:sub,tag:'Available',cls:'ok'};
+
+  /* CHALK-117. With a schedule, say it against the next game. Without one, or
+     when the next entry is ambiguous, nextGameDate() returns null and the
+     wording is exactly what it was before this ticket. */
+  var g=nextGameDate();
+  if(g){
+    var when=whenLabel(g);
+    if(eligible<=g){
+      return {ok:false,text:sub+', back for '+when,
+              tag:'Back for '+when,cls:'warn'};
+    }
+    return {ok:false,text:sub+', misses '+when+(when==='today'?'':'\u2019s game'),
+            tag:'Misses '+when,cls:'no'};
+  }
   return {ok:false,text:sub,tag:'Back '+pretty(eligible),cls:'no'};
 }
 /* Union County Cal Ripken, Majors, Spring 2026.
@@ -1141,6 +1227,17 @@ function savedSyncUrl(){
   try{ return (localStorage.getItem(SYNC_KEY)||'').trim(); }catch(e){ return ''; }
 }
 function syncUrl(){ return savedSyncUrl(); }
+
+/* CHALK-117. The GameChanger link carries a private token, so it is a password
+   and obeys the sync URL's rule exactly: never in source, pasted once into
+   Settings, and it lives only on this device. It is sent to the Apps Script
+   because the browser cannot fetch the feed itself, GitHub sends no CORS
+   header on it, so the fetch has to happen server side. */
+var ICS_KEY='chalkside_ics_url';
+function savedIcsUrl(){
+  try{ return (localStorage.getItem(ICS_KEY)||'').trim(); }catch(e){ return ''; }
+}
+function setIcsUrl(u){ try{ localStorage.setItem(ICS_KEY,(u||'').trim()); }catch(e){} }
 function setSyncUrl(u){ try{ localStorage.setItem(SYNC_KEY,(u||'').trim()); }catch(e){} }
 
 /* ---------------- restore from the sheet ----------------
@@ -1170,11 +1267,11 @@ function sheetField(row,names){
   return '';
 }
 
-function fetchSheetRows(){
+function fetchSheetRows(tab){
   var url=syncUrl();
   if(!url) return Promise.reject(new Error('no-url'));
   var sep=url.indexOf('?')>-1?'&':'?';
-  return fetch(url+sep+'action=list&sheet='+encodeURIComponent('Game Log'))
+  return fetch(url+sep+'action=list&sheet='+encodeURIComponent(tab||'Game Log'))
     .then(function(r){ if(!r.ok) throw new Error('status'); return r.json(); })
     .then(function(d){
       if(!d||d.ok!==true||Object.prototype.toString.call(d.rows)!=='[object Array]'){
@@ -1182,6 +1279,44 @@ function fetchSheetRows(){
       }
       return d.rows;
     });
+}
+
+/* CHALK-117. Two steps, both server side for the same reason: the browser
+   cannot read the feed, so the Apps Script fetches it, writes a Schedule tab,
+   and the app then reads that tab back through the list action restore already
+   uses. Nothing about the feed is logged or kept beyond the parsed dates. */
+function refreshSchedule(){
+  var url=syncUrl();
+  if(!url) return Promise.reject(new Error('no-sheet'));
+  var ics=savedIcsUrl();
+  if(!ics) return Promise.reject(new Error('no-feed'));
+  var sep=url.indexOf('?')>-1?'&':'?';
+  return fetch(url+sep+'action=schedule&ics='+encodeURIComponent(ics))
+    .then(function(r){ if(!r.ok) throw new Error('status'); return r.json(); })
+    .then(function(d){
+      if(!d||d.ok!==true) throw new Error(d&&d.error?String(d.error):'shape');
+      return fetchSheetRows('Schedule');
+    })
+    .then(function(rows){
+      var list=parseScheduleRows(rows);
+      setSchedule(list);
+      return list;
+    });
+}
+
+/* The kind is decided here, from the title, rather than trusted from the tab.
+   The rule for what reads as a game is the app's and changes without Dan
+   redeploying anything. */
+function parseScheduleRows(rows){
+  var out=[];
+  (rows||[]).forEach(function(r){
+    var date=String(sheetField(r,['date','start','when'])).trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;   /* never coerce a date */
+    var title=String(sheetField(r,['title','summary','event','name'])).trim();
+    out.push({date:date,title:title,kind:eventKind(title)});
+  });
+  out.sort(function(a,b){ return a.date<b.date?-1:(a.date>b.date?1:0); });
+  return out;
 }
 
 /* Works out what a restore would do without doing any of it. */
@@ -1353,7 +1488,7 @@ function openRestore(){
     '<div class="muted">Reading Game Log\u2026</div>';
   openSheet();
 
-  fetchSheetRows().then(function(rows){
+  fetchSheetRows('Game Log').then(function(rows){
     var plan=planRestore(rows);
     var h='<h2 class="sheetTitle">Restore from sheet</h2>';
 
@@ -1547,6 +1682,61 @@ el('s-log').addEventListener('click',function(e){
   pushDelete(id);
   renderAll();
 });
+/* CHALK-117 setup. Paste the feed, refresh, and say plainly what the app now
+   believes, including when it believes nothing. A blank line here would look
+   exactly like a schedule that was loaded and empty. */
+function scheduleStatus(){
+  /* what is LOADED is reported first. Asking about the saved link first let
+     this line read "no schedule set" while nextGameDate() was naming a day,
+     and a status line that contradicts the screen above it is worse than none. */
+  var evs=schedule();
+  if(!evs.length){
+    return savedIcsUrl()?'Feed saved, nothing loaded yet. Tap Save and refresh.'
+                        :'No schedule set. Availability reads as a date.';
+  }
+  var g=nextGameDate();
+  var upcoming=evs.filter(function(e){ return e.date>=todayStr(); }).length;
+  if(g) return evs.length+' events loaded, '+upcoming+' still ahead. Next game '+pretty(g)+'.';
+  var amb=evs.filter(function(e){ return e.date>=todayStr()&&e.kind==='unknown'; }).length;
+  if(amb) return evs.length+' events loaded. The next entry is not clearly a game, '+
+    'so the app says nothing about it rather than guessing.';
+  return evs.length+' events loaded, no game ahead of today.';
+}
+
+function openScheduleSetup(){
+  var h='<h2>Schedule</h2>'+
+    '<div class="muted" style="margin-bottom:10px">Paste the GameChanger calendar link. '+
+    'It contains a private token, so treat it like a password: it stays on this device '+
+    'and is never in the app\u2019s source. Your Apps Script reads the feed and writes a '+
+    'tab named Schedule.</div>'+
+    '<input class="fld" id="icsFld" placeholder="https://.../schedule.ics" value="'+esc(savedIcsUrl())+'">'+
+    '<div class="muted" id="icsMsg" style="margin-top:10px">'+esc(scheduleStatus())+'</div>'+
+    '<div class="controls" style="padding:14px 0 0">'+
+      '<button class="btn" data-close="1">Close</button>'+
+      '<button class="btn dark" id="icsSave">Save and refresh</button>'+
+    '</div>';
+  el('sheetInner').innerHTML=h;
+  openSheet();
+  el('icsSave').addEventListener('click',function(){
+    setIcsUrl(el('icsFld').value);
+    var msg=el('icsMsg');
+    if(!syncUrl()){ msg.textContent='Set the sheet up first, under Google Sheet. The feed is read through it.'; return; }
+    if(!savedIcsUrl()){ msg.textContent='Schedule cleared. Availability reads as a date again.'; setSchedule([]); renderAll(); return; }
+    msg.textContent='Refreshing\u2026';
+    refreshSchedule().then(function(){
+      msg.textContent=scheduleStatus();
+      renderAll();
+    }).catch(function(e){
+      /* the message names what failed; the app keeps working without it */
+      var why=String(e&&e.message||e);
+      msg.textContent=why==='no-sheet'?'No sheet set up yet.':
+                      why==='no-feed'?'No feed link saved.':
+                      'Could not read the feed ('+why+'). Nothing changed, the app still works without a schedule.';
+    });
+  });
+}
+
+el('schedBtn').addEventListener('click',openScheduleSetup);
 el('syncSetupBtn').addEventListener('click',openSyncSetup);
 el('sendUnsentBtn').addEventListener('click',sendUnsent);
 el('restoreBtn').addEventListener('click',openRestore);
@@ -1785,8 +1975,10 @@ function renderHeaders(){
   if(tf&&document.activeElement!==tf) tf.value=teamName();
 
   el('teamEyebrow').textContent=pretty(todayStr());
+  var ng=nextGameDate();
   el('teamSub').textContent=S.roster.length
-    ? avail+' available, '+(S.roster.length-avail)+' resting'
+    ? avail+' available, '+(S.roster.length-avail)+' resting'+
+      (ng?('  \u00b7  Next game '+whenLabel(ng)):'')
     : 'No players yet';
 
   var unsent=S.outings.filter(function(o){return !o.synced;}).length;
@@ -1800,6 +1992,7 @@ function renderHeaders(){
     : 'Nobody added yet';
 
   el('settingsSub').textContent=savedSyncUrl()?'Sheet connected':'No sheet connected';
+  if(el('schedSub')) el('schedSub').textContent=scheduleStatus();
 }
 
 function renderAll(){ renderCount(); renderTeam(); renderLog(); renderRoster(); renderHeaders(); }
