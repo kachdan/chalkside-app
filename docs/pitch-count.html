@@ -342,8 +342,16 @@ nav button.fab{
   width:72px;height:72px;min-height:0;padding:0;gap:0;
   margin:-20px 6px 0;
   border-radius:50%;
-  /* INACTIVE: the page's own colour, held up by a hairline and the shadow */
-  background:var(--surface-page);
+  /* INACTIVE: a surface lifted above the page, which is exactly what this
+     token means. It was --surface-page, the same colour as the bar behind it,
+     so the circle was held up by a 1.43:1 hairline and a near-black shadow on a
+     near-black bar. Dark was the failing case; Light is the same step inverted.
+
+     Not --brand-tint. A blue circle on a neutral bar risks reading as selected,
+     which is the confusion this whole ticket exists to remove: the inactive
+     state must not compete with the active one. If Dark is still thin, the next
+     move is --border-strong on the hairline, not a brighter fill. */
+  background:var(--surface-raised);
   border:1px solid var(--border-rule);
   /* the baseball stays brand blue, never grey. It is the app's own mark, not a
      state indicator, and greying it would read as the feature being
@@ -354,7 +362,6 @@ nav button.fab{
 }
 /* 40 in a 72 circle. It was 32; Dan set 40 in Figma and called it final. */
 nav button.fab svg{width:40px;height:40px;stroke-width:2;}
-nav button.fab:active{background:var(--surface-raised);}
 /* ACTIVE: the container fills, the mark inverts, the border goes */
 nav button.fab.on{
   background:var(--brand-primary);

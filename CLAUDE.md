@@ -290,20 +290,27 @@ verification run measured the archive repo instead of this one; the only reason
 it surfaced was a function coming back undefined. A run that cannot say what it
 measured did not verify anything.
 
-### A read taken mid-recalc is not a measurement
+### In an automated browser, believe the pixels before the computed styles
 
-`getComputedStyle` in the same block as the DOM work that caused the change can
-return the previous frame's values. It cost two false alarms in CHALK-126: a
-theme flip that read as not having happened, and a FAB that read as regressed
-when it had not. Force a reflow first, `void document.body.offsetHeight`, or
-read in a later call.
+`getComputedStyle` lies under automation. A read in the same block as the DOM
+work returns the previous frame; worse, with the tab backgrounded Chrome
+throttles recalc and it returns the previous SCREEN's class state **across
+separate tool calls**, while `className` on the same element already reads
+correctly. Forcing a reflow is not enough. In CHALK-126 and CHALK-128 this
+produced four false alarms against CSS that was correct.
 
-This is the third verification this week that measured the wrong thing. The
-others were an `http.server` from an earlier session holding port 8000, and a
-guard tested through the script path while the docs prescribe a symlink. The
-pattern is the same every time: the test ran, it went green, and it was not
-looking at the thing it claimed to look at. A green result is worth exactly as
-much as the evidence that it measured the right object.
+What works is forcing a paint: take a screenshot, then read. For anything
+visual, judge it from a zoomed screenshot at true size rather than a number.
+
+Contrast ratio is a text-legibility metric. A 72px circle is not text, and a
+colour pair with the same hue is not separated by it either: for adjacent hues
+measure CIE76 deltaE, which is what caught the 1 day / 2 days rest bands when
+the ratio passed them.
+
+**The pattern behind all four.** The tooling answered a question next to the one
+being asked: wrong port, wrong code path, previous frame, previous screen's
+class state. Every time the test passed while looking somewhere else. A green
+result from a tool that cannot name what it measured is not evidence.
 
 ### Always run the resume path
 
