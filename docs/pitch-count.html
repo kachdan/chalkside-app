@@ -6,9 +6,25 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Pitch Count">
-<meta name="theme-color" content="#FFFFFF">
+<meta name="theme-color" content="#FFFFFF" id="themeColor">
 <meta name="robots" content="noindex, nofollow">
 <title>Pitch Count</title>
+<script>
+/* CHALK-126. This runs before the stylesheet and before any markup, so the
+   first paint is already the right theme. Anything after this point and a dark
+   user gets a white flash on every cold open, which on a phone in a dugout is
+   exactly the thing dark mode exists to avoid.
+
+   Light is the default: a device that has never chosen gets Light, and the
+   system setting is deliberately NOT consulted. The reason Dan wants Dark is a
+   judgement about the other bench, and a clock does not know that. */
+(function(){
+  try{
+    var t=localStorage.getItem('chalkside_theme_v1');
+    if(t==='dark') document.documentElement.setAttribute('data-theme','dark');
+  }catch(e){}   /* private mode, storage off: Light, and never throw */
+})();
+</script>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
@@ -18,29 +34,115 @@
 <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,400;0,500;0,600;0,700;1,200&display=swap" rel="stylesheet">
 <style>
 :root{
-  /* ChalkSide tokens v1 */
-  --primary:#08487D;
-  --primary-dark:#063A66;
-  --paper:#FFFFFF;
-  --paper-2:#F4F5F7;
-  --ink:#16181A;
-  --ink-soft:#5F6469;
-  --gray:#949494;
-  --rule:#D9DCE0;
-  --safe:#3F9A4D;
-  --caution:#DD9821;
-  --caution-dark:#B77A15;
-  --stop:#DC0C1D;
-  --info:#1F66F6;
-  --tap:#E8EAED;
-  --count-ink:#474747;  /* the count in its normal state, softer than --ink */
+  /* CHALK-126. The token contract, from the Figma file
+     chalkside.com-pitch-count, collection "ChalkSide theme". These names are
+     the Figma names with the slashes flattened: color/surface/page is
+     --surface-page. Do not add a second scheme beside this one.
+
+     Light is the default and is the current production hex throughout, so
+     switching this file to tokens is a visual no-op in Light. */
+
+  /* surfaces */
+  --surface-page:#FFFFFF;
+  --surface-raised:#F4F5F7;
+  --surface-control:#F4F5F7;
+  --surface-tap:#E8EAED;
+
+  /* borders */
+  --border-rule:#D9DCE0;
+  --border-strong:#949494;
+
+  /* text */
+  --text-primary:#16181A;
+  --text-secondary:#5F6469;
+  --text-tertiary:#949494;
+  --text-count:#474747;        /* the count at rest, softer than primary */
+  --text-accent:#08487D;
+  --text-on-accent:#FFFFFF;
+
+  /* brand */
+  --brand-primary:#08487D;
+  --brand-primary-strong:#063A66;
+  --brand-tint:#E1EAF3;
+
+  /* status */
+  --status-safe:#3F9A4D;
+  --status-caution:#DD9821;
+  --status-caution-strong:#B77A15;
+  --status-stop:#DC0C1D;
+  --status-info:#1F66F6;       /* reserved, currently unused */
+
+  /* the rest bands. A coach reads these to decide whether to leave a kid in,
+     so they are tokens in their own right and not tints of the status set. */
+  --band-rest-0:#CDE4D1;
+  --band-rest-0-progress:#3F9A4D;
+  --band-rest-1:#F6E4C2;
+  --band-rest-2:#EFDFC4;
+  --band-rest-3:#F7D3D6;
+
+  /* ChalkSide primitives, single valued in both themes */
+  --radius-sm:6px; --radius-md:10px; --radius-lg:12px; --radius-xl:16px; --radius-pill:999px;
+  --space-2:2px; --space-4:4px; --space-6:6px; --space-8:8px; --space-12:12px;
+  --space-16:16px; --space-20:20px; --space-24:24px; --space-32:32px;
+  --space-40:40px; --space-48:48px;
+  --size-tap-sm:40px; --size-tap-md:44px; --size-tap-lg:48px; --size-tap-xl:52px;
+  --stroke-hairline:1px; --stroke-indicator:2px;
 }
+
+/* CHALK-126. Dark is a privacy control before it is a display setting: a white
+   phone at chest height is readable from the other bench, and what is readable
+   is a pitcher's count and who is one inning from losing the mound.
+
+   Values marked FIGMA came out of the file. Values marked DERIVED were not
+   bound to any layer in the four frames, so the file could not give them to
+   me; they follow the transform the file demonstrably applied elsewhere and
+   were then checked for contrast against the dark page. Every DERIVED value is
+   a question for Dan, not a decision I made quietly. */
+[data-theme="dark"]{
+  --surface-page:#101214;            /* FIGMA */
+  --surface-raised:#1A1D21;          /* FIGMA */
+  --surface-control:#1A1D21;         /* FIGMA */
+  --surface-tap:#22262B;             /* DERIVED, one step above raised */
+
+  --border-rule:#2C3136;             /* FIGMA */
+  --border-strong:#454B52;           /* DERIVED, visible on page, below text */
+
+  --text-primary:#EDEFF1;            /* FIGMA, 16.3:1 on the page */
+  --text-secondary:#9AA1A8;          /* FIGMA, 7.2:1 */
+  --text-tertiary:#949494;           /* DERIVED, unchanged: already 6.2:1 */
+  --text-count:#C9CDD1;              /* FIGMA, 11.7:1 */
+  --text-accent:#86B6E2;             /* FIGMA, 8.8:1 */
+  --text-on-accent:#F4F7FA;          /* FIGMA */
+
+  --brand-primary:#2A6FAE;           /* FIGMA */
+  --brand-primary-strong:#1D5C96;    /* DERIVED, the pressed state of the above */
+  --brand-tint:#15293C;              /* FIGMA */
+
+  --status-safe:#4FAE5D;             /* FIGMA, 6.7:1 */
+  --status-caution:#D0942E;          /* DERIVED, 7.1:1 */
+  --status-caution-strong:#AC7720;   /* DERIVED, 4.8:1 */
+  --status-stop:#E63B48;             /* DERIVED, 4.5:1 */
+  --status-info:#4078E9;             /* DERIVED, 4.5:1 */
+
+  /* FIGMA, all four. Checked rather than assumed: worst separation is
+     1 day against 2 days at deltaE 4.2, and the same pair in Light is 4.0, so
+     Dark is marginally better than what ships today. They do not collapse. */
+  --band-rest-0:#223A27;
+  --band-rest-0-progress:#4FAE5D;
+  --band-rest-1:#3E3520;
+  --band-rest-2:#3A3324;
+  --band-rest-3:#43262A;
+}
+
+/* the page itself, so there is no white gutter behind a dark app */
+html{background:var(--surface-page);}
+
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
 body{
   margin:0;
-  background:var(--paper);
-  color:var(--ink);
+  background:var(--surface-page);
+  color:var(--text-primary);
   font-family:"Fira Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   font-size:16px;
   line-height:1.45;
@@ -61,47 +163,47 @@ h2{
   font-size:19px;margin:0 0 10px;
 }
 .pad{padding:14px 16px;}
-.rule{height:1px;background:var(--rule);border:0;margin:0;}
+.rule{height:1px;background:var(--border-rule);border:0;margin:0;}
 button{font-family:inherit;font-size:16px;color:inherit;cursor:pointer;}
 .btn{
-  background:var(--paper-2);border:1.5px solid var(--rule);border-radius:10px;
+  background:var(--surface-raised);border:1.5px solid var(--border-rule);border-radius:10px;
   padding:12px 14px;min-height:48px;font-weight:500;
 }
-.btn:active{background:var(--tap);}
-.btn.dark{background:var(--primary);color:#fff;border-color:var(--primary);}
-.btn.dark:active{background:var(--primary-dark);}
+.btn:active{background:var(--surface-tap);}
+.btn.primary{background:var(--brand-primary);color:var(--text-on-accent);border-color:var(--brand-primary);}
+.btn.primary:active{background:var(--brand-primary-strong);}
 .btn.wide{width:100%;}
-:focus-visible{outline:3px solid var(--primary);outline-offset:2px;}
+:focus-visible{outline:3px solid var(--brand-primary);outline-offset:2px;}
 textarea{
   font-family:inherit;font-size:16px;padding:11px 12px;line-height:1.4;
-  border:1.5px solid var(--rule);border-radius:10px;background:var(--paper-2);
-  color:var(--ink);width:100%;-webkit-user-select:text;user-select:text;
+  border:1.5px solid var(--border-rule);border-radius:10px;background:var(--surface-raised);
+  color:var(--text-primary);width:100%;-webkit-user-select:text;user-select:text;
   resize:vertical;min-height:132px;
 }
 /* import preview */
 .prev{margin-top:12px;}
 .prevrow{
   display:flex;align-items:center;gap:12px;
-  padding:8px 0;border-top:1px solid var(--rule);
+  padding:8px 0;border-top:1px solid var(--border-rule);
 }
 .prevrow .num{
   flex:0 0 auto;min-width:34px;text-align:center;
   font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;
-  color:var(--ink-soft);
+  color:var(--text-secondary);
 }
 .prevrow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .prevbad{
   margin-top:10px;padding:10px 12px;border-radius:10px;
-  background:var(--paper-2);border:1.5px solid var(--caution);
+  background:var(--surface-raised);border:1.5px solid var(--status-caution);
 }
-.prevbad .line{font-size:13.5px;color:var(--ink);margin-top:4px;word-break:break-all;}
+.prevbad .line{font-size:13.5px;color:var(--text-primary);margin-top:4px;word-break:break-all;}
 
 input,select{
   font-family:inherit;font-size:16px;padding:11px 12px;
-  border:1.5px solid var(--rule);border-radius:10px;background:var(--paper-2);
-  color:var(--ink);width:100%;-webkit-user-select:text;user-select:text;
+  border:1.5px solid var(--border-rule);border-radius:10px;background:var(--surface-raised);
+  color:var(--text-primary);width:100%;-webkit-user-select:text;user-select:text;
 }
-.muted{color:var(--ink-soft);font-size:13.5px;}
+.muted{color:var(--text-secondary);font-size:13.5px;}
 .row{display:flex;gap:10px;align-items:center;}
 
 /* ---------- count screen ---------- */
@@ -114,8 +216,13 @@ input,select{
   line-height:1.1;letter-spacing:.01em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.who .swap{
-  border:1.5px solid var(--rule);background:var(--paper-2);
+/* Not .who .swap. CHALK-110 put a second one of these in the state line and it
+   fell back to the browser's default button face, rgb(239,239,239), which is
+   close enough to --surface-raised that nobody saw it in Light. Dark mode is
+   what made it a white box on a black page. */
+.swap{
+  border:1.5px solid var(--border-rule);background:var(--surface-raised);
+  color:var(--text-primary);
   /* same 10px corner as .btn, but kept small for the header row */
   border-radius:10px;padding:8px 14px;font-size:14px;min-height:40px;flex:0 0 auto;
 }
@@ -125,13 +232,13 @@ input,select{
      opens a gap above and below without eating into the zone's own height. */
   flex:1;min-height:0;margin:32px 0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  background:var(--paper-2);border:0;border-radius:16px;width:100%;padding:0;
+  background:var(--surface-raised);border:0;border-radius:16px;width:100%;padding:0;
   position:relative;
   /* slower on the way out so the release is visible after the thumb lifts */
   transition:background .18s ease;
 }
 .tapzone:active{
-  background:var(--tap);
+  background:var(--surface-tap);
   /* fast on the way in, a pitch should register instantly */
   transition:background .08s ease;
 }
@@ -142,10 +249,10 @@ input,select{
   font-variant-numeric:tabular-nums;letter-spacing:-.02em;
   transition:transform .07s ease, color .2s ease;
 }
-.count.safe{color:var(--count-ink);}
-.count.caution{color:var(--caution);}
-.count.stop{color:var(--stop);}
-.taphint{font-size:13.5px;color:var(--ink-soft);margin-top:14px;}
+.count.safe{color:var(--text-count);}
+.count.caution{color:var(--status-caution);}
+.count.stop{color:var(--status-stop);}
+.taphint{font-size:13.5px;color:var(--text-secondary);margin-top:14px;}
 
 /* rest-cost ribbon: the signature element */
 .ribbon{padding:0 16px 4px;}
@@ -156,10 +263,10 @@ input,select{
 }
 /* The tier colour is carried on the segment itself, so the pale track and the
    fill are the same colour without four more tokens for the pale versions. */
-.ribbon .seg[data-d="0"]{color:var(--safe);}
-.ribbon .seg[data-d="1"]{color:var(--caution);}
-.ribbon .seg[data-d="2"]{color:var(--caution-dark);}
-.ribbon .seg[data-d="3"]{color:var(--stop);}
+.ribbon .seg[data-d="0"]{color:var(--status-safe);}
+.ribbon .seg[data-d="1"]{color:var(--status-caution);}
+.ribbon .seg[data-d="2"]{color:var(--status-caution-strong);}
+.ribbon .seg[data-d="3"]{color:var(--status-stop);}
 /* unfilled track, the segment's own colour at 20% */
 .ribbon .seg::before{
   content:'';position:absolute;top:0;right:0;bottom:0;left:0;
@@ -173,7 +280,7 @@ input,select{
 }
 .ribbon .ticks{
   display:flex;justify-content:space-between;
-  font-family:inherit;font-size:12px;color:var(--ink-soft);
+  font-family:inherit;font-size:12px;color:var(--text-secondary);
   margin-top:4px;font-variant-numeric:tabular-nums;
 }
 .verdict{
@@ -189,8 +296,8 @@ input,select{
   font-size:clamp(12px,3.9vw,16px);font-weight:500;
 }
 .verdict b{font-family:inherit;font-weight:600;font-size:1.1em;}
-.verdict.caution{color:var(--caution);}
-.verdict.stop{color:var(--stop);}
+.verdict.caution{color:var(--status-caution);}
+.verdict.stop{color:var(--status-stop);}
 
 .controls{display:flex;gap:10px;padding:0 16px 12px;}
 /* the two that are left share the row rather than leaving Undo's gap behind */
@@ -201,8 +308,8 @@ input,select{
 nav{
   position:relative;z-index:2;
   display:flex;gap:4px;
-  background:var(--paper);
-  border-top:1px solid var(--rule);
+  background:var(--surface-page);
+  border-top:1px solid var(--border-rule);
   box-shadow:0 -6px 18px rgba(22,24,26,.07);
   padding:8px 8px calc(8px + env(safe-area-inset-bottom));
 }
@@ -210,17 +317,17 @@ nav button{
   flex:1;background:none;border:0;border-radius:14px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   padding:8px 2px;min-height:58px;
-  font-size:11.5px;letter-spacing:.01em;color:var(--ink-soft);font-weight:500;
+  font-size:11.5px;letter-spacing:.01em;color:var(--text-secondary);font-weight:500;
   transition:background .12s ease,color .12s ease;
 }
 nav button svg{width:23px;height:23px;stroke:currentColor;stroke-width:2;fill:none;
   stroke-linecap:round;stroke-linejoin:round;}
-nav button:active{background:var(--tap);}
+nav button:active{background:var(--surface-tap);}
 /* The active pill used to hardcode the primary as rgba, which meant it did not
    follow a brand change. Drawn from currentColor now, which is --primary on an
    active tab, as a layer so no color-mix is needed. */
 nav button{position:relative;z-index:0;}
-nav button.on{color:var(--primary);font-weight:600;}
+nav button.on{color:var(--brand-primary);font-weight:600;}
 nav button.on::before{
   content:'';position:absolute;top:0;right:0;bottom:0;left:0;
   border-radius:inherit;background:currentColor;opacity:.10;z-index:-1;
@@ -235,19 +342,19 @@ nav button.fab{
   width:72px;height:72px;min-height:0;padding:0;gap:0;
   margin:-20px 6px 0;
   border-radius:50%;border:0;
-  background:var(--primary);color:#fff;
+  background:var(--brand-primary);color:var(--text-on-accent);
   box-shadow:0 4px 12px rgba(22,24,26,.22);
 }
 /* 32 in a 72 circle leaves 20px of colour each side. At 28 the seam stitches
    fused into the seam curves; they separate at 32. */
 nav button.fab svg{width:32px;height:32px;stroke-width:2;}
-nav button.fab:active{background:var(--primary-dark);}
+nav button.fab:active{background:var(--brand-primary-strong);}
 /* active is the circle deepening, not the pill the others get */
-nav button.fab.on{background:var(--primary-dark);color:#fff;}
+nav button.fab.on{background:var(--brand-primary-strong);color:var(--text-on-accent);}
 
 /* ---------- lists ---------- */
 .card{
-  background:var(--paper-2);border:1.5px solid var(--rule);
+  background:var(--surface-raised);border:1.5px solid var(--border-rule);
   border-radius:12px;padding:12px 14px;margin-bottom:10px;
 }
 .card .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
@@ -255,7 +362,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
 .jersey{
   display:inline-flex;align-items:center;justify-content:center;
   width:44px;height:44px;flex:0 0 auto;padding:0;
-  border-radius:50%;background:var(--primary);color:#fff;
+  border-radius:50%;background:var(--brand-primary);color:var(--text-on-accent);
   font-size:20px;font-weight:200;font-style:italic;
   font-variant-numeric:tabular-nums;
 }
@@ -271,7 +378,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
   display:block;font-family:inherit;font-size:19px;font-weight:500;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.prow .psub{display:block;font-size:13.5px;color:var(--ink-soft);margin-top:2px;}
+.prow .psub{display:block;font-size:13.5px;color:var(--text-secondary);margin-top:2px;}
 .prow>.tag,.prow>.stepper,.prow>.btn{flex:0 0 auto;}
 /* CHALK-110 state line. One row, three parts: an advance, a statement, and the
    only correction. 44px targets on both buttons, used one handed in the sun. */
@@ -282,32 +389,32 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
 .stateline .inn{
   display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;
   min-height:44px;padding:0 12px;border:0;border-radius:10px;
-  background:var(--paper-2);color:var(--primary);
+  background:var(--surface-raised);color:var(--brand-primary);
   font:inherit;font-size:15px;font-weight:600;cursor:pointer;
 }
-.stateline .inn:active{background:var(--rule);}
+.stateline .inn:active{background:var(--border-rule);}
 .stateline .belief{
   flex:1 1 auto;min-width:0;
-  font-size:14px;color:var(--ink-soft);
+  font-size:14px;color:var(--text-secondary);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.stateline .belief b{color:var(--ink);font-weight:600;}
+.stateline .belief b{color:var(--text-primary);font-weight:600;}
 
 /* the catcher picker rows: the cost sits on the row it applies to, at the
    moment of the decision, not in a toast afterward */
 .crow{
   display:flex;align-items:center;gap:10px;width:100%;
   min-height:56px;padding:8px 12px;margin-top:6px;
-  border:0;border-radius:12px;background:var(--paper-2);
+  border:0;border-radius:12px;background:var(--surface-raised);
   font:inherit;text-align:left;cursor:pointer;
 }
 .crow:disabled{opacity:.55;cursor:default;}
-.crow .cn{flex:1 1 auto;min-width:0;font-size:16px;color:var(--ink);
+.crow .cn{flex:1 1 auto;min-width:0;font-size:16px;color:var(--text-primary);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.crow .cin{flex:0 0 auto;font-size:13px;color:var(--ink-soft);
+.crow .cin{flex:0 0 auto;font-size:13px;color:var(--text-secondary);
   font-variant-numeric:tabular-nums;}
-.crow .ccost{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--caution-dark);}
-.crow .ctick{flex:0 0 auto;width:18px;color:var(--safe);font-weight:700;}
+.crow .ccost{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--status-caution-strong);}
+.crow .ctick{flex:0 0 auto;width:18px;color:var(--status-safe);font-weight:700;}
 
 .tag{
   position:relative;z-index:0;
@@ -320,48 +427,68 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
   content:'';position:absolute;top:0;right:0;bottom:0;left:0;
   border-radius:999px;opacity:.15;z-index:-1;
 }
-.tag.ok::before{background:var(--safe);}
-.tag.warn::before{background:var(--caution);}
-.tag.no::before{background:var(--stop);}
+.tag.ok::before{background:var(--status-safe);}
+.tag.warn::before{background:var(--status-caution);}
+.tag.no::before{background:var(--status-stop);}
 
 /* Text is the same hue darkened towards --ink so it reads against its own
    tint. Without color-mix it falls back to the plain token, which is why
    warn falls back to the dark caution token rather than the bright one. */
-.tag.ok{color:var(--safe);}
-.tag.warn{color:var(--caution-dark);}
-.tag.no{color:var(--stop);}
+.tag.ok{color:var(--status-safe);}
+.tag.warn{color:var(--status-caution-strong);}
+.tag.no{color:var(--status-stop);}
 /* Mix percentages are measured, not picked by eye. Against each tint over a
    --paper-2 card these land at 4.99, 4.95 and 5.07 to 1. Lighter mixes read
    nicer and fail: --safe at 72% is 4.35, --caution-dark at 78% is 4.18. */
 @supports (color:color-mix(in srgb,red 50%,black)){
-  .tag.ok{color:color-mix(in srgb,var(--safe) 64%,var(--ink));}
-  .tag.warn{color:color-mix(in srgb,var(--caution-dark) 68%,var(--ink));}
-  .tag.no{color:color-mix(in srgb,var(--stop) 78%,var(--ink));}
+  .tag.ok{color:color-mix(in srgb,var(--status-safe) 64%,var(--text-primary));}
+  .tag.warn{color:color-mix(in srgb,var(--status-caution-strong) 68%,var(--text-primary));}
+  .tag.no{color:color-mix(in srgb,var(--status-stop) 78%,var(--text-primary));}
 }
 .stepper{display:flex;align-items:center;gap:8px;}
 .stepper button{
-  width:44px;height:44px;border-radius:10px;border:1.5px solid var(--rule);
-  background:var(--paper);font-size:20px;font-family:inherit;
+  width:44px;height:44px;border-radius:10px;border:1.5px solid var(--border-rule);
+  background:var(--surface-page);font-size:20px;font-family:inherit;
 }
-.stepper button[disabled]{opacity:.4;color:var(--gray);}
+.stepper button[disabled]{opacity:.4;color:var(--text-tertiary);}
 .stepper .n{font-family:inherit;font-size:20px;min-width:26px;text-align:center;}
-.empty{padding:28px 4px;text-align:center;color:var(--ink-soft);font-size:15px;}
+.empty{padding:28px 4px;text-align:center;color:var(--text-secondary);font-size:15px;}
 
 /* ---------- sheet ---------- */
 /* ---------- page header ---------- */
 .phead{
   flex:0 0 auto;padding:16px 16px 12px;
-  border-bottom:1px solid var(--rule);   /* full bleed: outside .pad */
+  border-bottom:1px solid var(--border-rule);   /* full bleed: outside .pad */
 }
 .phead .eyebrow{
   font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
-  color:var(--ink-soft);
+  color:var(--text-secondary);
 }
 .phead h1{
   margin:2px 0 0;font-family:inherit;line-height:1.1;
-  font-size:30px;font-weight:600;letter-spacing:-.02em;color:var(--ink);
+  font-size:30px;font-weight:600;letter-spacing:-.02em;color:var(--text-primary);
 }
-.phead .subline{margin-top:4px;font-size:14px;color:var(--ink-soft);}
+.phead .subline{margin-top:4px;font-size:14px;color:var(--text-secondary);}
+
+/* CHALK-126 appearance switch. 122x34 with 2px inset options, from the Figma
+   frame. The options are 30px rather than the 44px tap minimum because this is
+   a settings control on a stationary screen, not something tapped one handed
+   during a game; the surrounding row gives it 44px of vertical room. */
+.headline{display:flex;align-items:center;justify-content:space-between;gap:var(--space-12);}
+.headline h1{margin:0;}
+.segmented{
+  display:inline-flex;flex:0 0 auto;padding:var(--space-2);gap:var(--space-2);
+  background:var(--surface-raised);border-radius:var(--radius-md);
+}
+.segmented .seg{
+  min-height:30px;padding:0 var(--space-12);border:0;border-radius:var(--radius-sm);
+  background:transparent;color:var(--text-secondary);
+  font:inherit;font-size:14px;font-weight:500;cursor:pointer;
+}
+.segmented .seg.on{
+  background:var(--surface-page);color:var(--text-accent);font-weight:600;
+  box-shadow:0 1px 2px rgba(0,0,0,.10);
+}
 
 /* ---------- sheet ---------- */
 .sheet{
@@ -370,7 +497,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
 }
 .sheet.on{display:flex;}
 .sheet .panel{
-  background:var(--paper);width:100%;max-width:640px;margin:0 auto;
+  background:var(--surface-page);width:100%;max-width:640px;margin:0 auto;
   border-radius:20px 20px 0 0;
   max-height:82vh;                  /* never reaches the top, content stays visible behind */
   display:flex;flex-direction:column;
@@ -378,7 +505,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
   transition:transform .22s ease;
 }
 .sheet .grab{flex:0 0 auto;display:flex;justify-content:center;padding:10px 0 6px;}
-.sheet .grab i{width:40px;height:5px;border-radius:999px;background:var(--rule);display:block;}
+.sheet .grab i{width:40px;height:5px;border-radius:999px;background:var(--border-rule);display:block;}
 .sheet .inner{
   flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:4px 16px calc(20px + env(safe-area-inset-bottom));
@@ -388,11 +515,11 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
 /* picker rows are actions: chevron, tappable */
 .pick{
   display:block;width:100%;text-align:left;margin-bottom:8px;
-  background:var(--paper-2);border:1.5px solid var(--rule);border-radius:10px;
+  background:var(--surface-raised);border:1.5px solid var(--border-rule);border-radius:10px;
   padding:13px 14px;min-height:52px;
 }
-.pick:active{background:var(--tap);}
-.prow>.chev{flex:0 0 auto;display:flex;align-items:center;color:var(--ink-soft);}
+.pick:active{background:var(--surface-tap);}
+.prow>.chev{flex:0 0 auto;display:flex;align-items:center;color:var(--text-secondary);}
 .prow>.chev svg{
   width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;
   stroke-linecap:round;stroke-linejoin:round;
@@ -401,7 +528,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
 .pick.blocked{opacity:.55;}
 .restlabel{
   font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
-  color:var(--ink-soft);margin:18px 0 8px;
+  color:var(--text-secondary);margin:18px 0 8px;
 }
 /* ---------- count screen, two states ---------- */
 /* [hidden] alone loses to display:flex, so both states say so explicitly */
@@ -413,19 +540,19 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
 #pickFirst[hidden]{display:none;}
 .picklist{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px;}
 .pickrow{
-  background:var(--paper-2);border:1.5px solid var(--rule);
+  background:var(--surface-raised);border:1.5px solid var(--border-rule);
   border-radius:12px;margin-bottom:10px;overflow:hidden;
 }
 /* inset ring rather than a thicker border, so selecting shifts nothing, and it
    lands the moment the class does rather than waiting for the expansion */
-.pickrow.sel{border-color:var(--primary);box-shadow:inset 0 0 0 1.5px var(--primary);}
+.pickrow.sel{border-color:var(--brand-primary);box-shadow:inset 0 0 0 1.5px var(--brand-primary);}
 .pickrow.blocked{opacity:.55;}
 .pickrow.blocked .pickhead{padding:12px 14px;}
 .pickhead{
   width:100%;text-align:left;background:transparent;border:0;
   padding:12px 14px;
 }
-.pickhead:active{background:var(--tap);}
+.pickhead:active{background:var(--surface-tap);}
 /* height is set in px by the script, since auto cannot be transitioned */
 .pickexpand{height:0;overflow:hidden;transition:height .16s ease;}
 .pickexpand-in{padding:0 14px 14px;}
@@ -487,7 +614,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
 
       <div class="controls">
         <button class="btn" id="minusBtn">&minus;1</button>
-        <button class="btn dark" id="endBtn">End outing</button>
+        <button class="btn primary" id="endBtn">End outing</button>
       </div>
     </div>
   </section>
@@ -535,7 +662,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
     <div class="pad">
       <div class="row" style="margin-bottom:14px">
         <input id="newName" placeholder="11 Firstname Lastname" autocomplete="off">
-        <button class="btn dark" id="addBtn" style="flex:0 0 auto">Add</button>
+        <button class="btn primary" id="addBtn" style="flex:0 0 auto">Add</button>
       </div>
       <div id="rosterList"></div>
     </div>
@@ -545,7 +672,13 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
   <section class="screen" id="s-settings">
     <header class="phead">
       <div class="eyebrow">This device</div>
-      <h1>Settings</h1>
+      <div class="headline">
+        <h1>Settings</h1>
+        <!-- CHALK-126. Figma has this right aligned on the H1 line. Dan put it
+             there and noted he may move it, so it is built where the design has
+             it, not where it might end up. -->
+        <div class="segmented" id="appearance" role="group" aria-label="Appearance"></div>
+      </div>
       <div class="subline" id="settingsSub"></div>
     </header>
     <div class="pad">
@@ -1080,7 +1213,7 @@ function renderPickList(){
             '<span class="tag '+r.av.cls+'">'+esc(r.av.tag)+'</span>'+
           '</button>'+
           '<div class="pickexpand"><div class="pickexpand-in">'+
-            '<button class="btn dark wide" data-start="'+p.id+'">'+
+            '<button class="btn primary wide" data-start="'+p.id+'">'+
               (firstName(p.name)?('Start '+esc(firstName(p.name))+'\u2019s outing'):'Start this outing')+
             '</button>'+
           '</div></div>'+
@@ -1376,6 +1509,34 @@ function commitOuting(){
 /* ---------------- google sheet sync ---------------- */
 /* The team name lives on the device, never in source. The app ships with none
    and shows a generic header until a coach sets one. */
+/* CHALK-126. Per device, beside the team name and the roster. */
+var THEME_KEY='chalkside_theme_v1';
+function theme(){
+  try{ return localStorage.getItem(THEME_KEY)==='dark'?'dark':'light'; }
+  catch(e){ return 'light'; }
+}
+function setTheme(t){
+  var dark=(t==='dark');
+  try{ localStorage.setItem(THEME_KEY,dark?'dark':'light'); }catch(e){}
+  if(dark) document.documentElement.setAttribute('data-theme','dark');
+  else document.documentElement.removeAttribute('data-theme');
+  /* the browser chrome and the notch area, or the top of the screen stays
+     white above a dark app */
+  var m=document.getElementById('themeColor');
+  if(m) m.setAttribute('content',dark?'#101214':'#FFFFFF');
+  var b=document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  if(b) b.setAttribute('content',dark?'black-translucent':'default');
+  renderAppearance();
+}
+function renderAppearance(){
+  var host=document.getElementById('appearance');
+  if(!host) return;
+  var t=theme();
+  host.innerHTML=
+    '<button class="seg'+(t==='light'?' on':'')+'" data-theme-set="light" aria-pressed="'+(t==='light')+'">Light</button>'+
+    '<button class="seg'+(t==='dark'?' on':'')+'" data-theme-set="dark" aria-pressed="'+(t==='dark')+'">Dark</button>';
+}
+
 var TEAM_KEY='chalkside_team_name';
 function teamName(){
   try{ return (localStorage.getItem(TEAM_KEY)||'').trim(); }catch(e){ return ''; }
@@ -1759,7 +1920,7 @@ function openRestore(){
     el('sheetInner').innerHTML='<h2 class="sheetTitle">Restore from sheet</h2>'+
       '<div class="muted">This needs your Apps Script URL first. Add it under '+
       'Sheet setup, then come back.</div>'+
-      '<button class="btn dark wide" style="margin-top:14px" id="restoreToSetup">Open Sheet setup</button>'+
+      '<button class="btn primary wide" style="margin-top:14px" id="restoreToSetup">Open Sheet setup</button>'+
       '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
     openSheet();
     el('restoreToSetup').addEventListener('click',openSyncSetup);
@@ -1838,7 +1999,7 @@ function openRestore(){
 
     h+='<div class="muted" style="margin-top:12px">Nothing already on this device is '+
        'changed or removed. Players you have here that the sheet has never seen are kept.</div>'+
-       '<button class="btn dark wide" style="margin-top:14px" id="restoreGo">Restore '+
+       '<button class="btn primary wide" style="margin-top:14px" id="restoreGo">Restore '+
        esc(label)+'</button>'+
        '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
     el('sheetInner').innerHTML=h;
@@ -1873,7 +2034,7 @@ function openSyncSetup(){
     '<input class="fld" id="syncFld" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(savedSyncUrl())+'">'+
     '<div class="controls" style="padding:14px 0 0">'+
       '<button class="btn" data-close="1">Cancel</button>'+
-      '<button class="btn dark" id="syncSave">Save</button>'+
+      '<button class="btn primary" id="syncSave">Save</button>'+
     '</div>';
   el('sheetInner').innerHTML=h;
   openSheet();
@@ -1951,9 +2112,9 @@ function renderTeam(){
        behind the plate, so adding innings to him is refused. */
     var maxed=hitMaxToday(p.id);
     var note='';
-    if(n>3) note='<div class="psub" style="color:var(--stop)">Cannot pitch in this game</div>';
-    else if(n===3) note='<div class="psub" style="color:var(--caution-dark)">One more inning and he cannot pitch today</div>';
-    if(maxed) note+='<div class="psub" style="color:var(--stop)">Reached '+MAX+', cannot catch today</div>';
+    if(n>3) note='<div class="psub" style="color:var(--status-stop)">Cannot pitch in this game</div>';
+    else if(n===3) note='<div class="psub" style="color:var(--status-caution-strong)">One more inning and he cannot pitch today</div>';
+    if(maxed) note+='<div class="psub" style="color:var(--status-stop)">Reached '+MAX+', cannot catch today</div>';
     return '<div class="card"><div class="prow">'+jerseyTag(p)+
       '<div class="ptext">'+
         '<div class="pname">'+esc(p.name)+'</div>'+
@@ -1985,9 +2146,9 @@ el('s-team').addEventListener('click',function(e){
    was configured, which looked exactly like everything being safely synced. */
 function syncStatusLine(o){
   var text,colour;
-  if(!syncUrl()){ text='No sheet set up, nothing is being sent'; colour='var(--ink-soft)'; }
-  else if(o.synced){ text='In the sheet'; colour='var(--safe)'; }
-  else { text='Not sent yet'; colour='var(--caution)'; }
+  if(!syncUrl()){ text='No sheet set up, nothing is being sent'; colour='var(--text-secondary)'; }
+  else if(o.synced){ text='In the sheet'; colour='var(--status-safe)'; }
+  else { text='Not sent yet'; colour='var(--status-caution)'; }
   return '<div class="muted" style="color:'+colour+'">'+text+'</div>';
 }
 
@@ -2025,7 +2186,7 @@ function renderLog(){
         (many?(' across '+g.items.length+' outings'):'')+
         ', clear to pitch again '+pretty(clear)+'</div>'+
       g.items.map(function(o){
-        return '<div'+(many?' style="margin-top:10px;padding-top:10px;border-top:1px solid var(--rule)"':'')+'>'+
+        return '<div'+(many?' style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-rule)"':'')+'>'+
           (many?'<div class="muted">'+o.pitches+' pitches</div>':'')+
           syncStatusLine(o)+
           '<button '+del+' data-del="'+o.id+'">Delete</button>'+
@@ -2078,7 +2239,7 @@ function openScheduleSetup(){
     '<div class="muted" id="icsMsg" style="margin-top:10px">'+esc(scheduleStatus())+'</div>'+
     '<div class="controls" style="padding:14px 0 0">'+
       '<button class="btn" data-close="1">Close</button>'+
-      '<button class="btn dark" id="icsSave">Save and refresh</button>'+
+      '<button class="btn primary" id="icsSave">Save and refresh</button>'+
     '</div>';
   el('sheetInner').innerHTML=h;
   openSheet();
@@ -2101,6 +2262,13 @@ function openScheduleSetup(){
   });
 }
 
+/* CHALK-126. Instant, no reload: the attribute flips and every token
+   re-resolves. Nothing is re-rendered and nothing is lost. */
+el('s-settings').addEventListener('click',function(e){
+  var b=e.target.closest('[data-theme-set]'); if(!b) return;
+  setTheme(b.dataset.themeSet);
+});
+
 el('inningBtn').addEventListener('click',function(){
   advanceInning();
   renderAll();
@@ -2116,7 +2284,7 @@ el('addManual').addEventListener('click',function(){
     '<label class="muted">Pitcher</label><select id="mPl">'+S.roster.map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+'</option>';}).join('')+'</select>'+
     '<label class="muted" style="display:block;margin-top:12px">Date</label><input type="date" id="mDt" value="'+todayStr()+'">'+
     '<label class="muted" style="display:block;margin-top:12px">Pitches</label><input type="number" id="mPc" inputmode="numeric" value="0">'+
-    '<button class="btn dark wide" style="margin-top:16px" id="mSave">Save outing</button>'+
+    '<button class="btn primary wide" style="margin-top:16px" id="mSave">Save outing</button>'+
     '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
   el('sheetInner').innerHTML=h;
   openSheet();
@@ -2133,7 +2301,7 @@ function renderRoster(){
   if(!S.roster.length){
     el('rosterList').innerHTML='<div class="empty">No players yet. Add them one at a time above, '+
       'or paste the whole team in at once.</div>'+
-      '<button class="btn dark wide" style="margin-top:4px" data-goimport="1">Paste a roster</button>';
+      '<button class="btn primary wide" style="margin-top:4px" data-goimport="1">Paste a roster</button>';
   }
   else el('rosterList').innerHTML=S.roster.map(function(p){
     return '<div class="card"><div class="prow">'+jerseyTag(p)+
@@ -2227,7 +2395,7 @@ function renderImportPreview(){
        '</div>';
   }
   if(res.good.length){
-    h+='<button class="btn dark wide" id="importAppend" style="margin-top:14px">'+
+    h+='<button class="btn primary wide" id="importAppend" style="margin-top:14px">'+
        'Add '+res.good.length+' to the roster</button>'+
        '<button class="btn wide" id="importReplace" style="margin-top:8px">'+
        'Replace the roster with these</button>';
@@ -2367,6 +2535,7 @@ function renderHeaders(){
 
   el('settingsSub').textContent=savedSyncUrl()?'Sheet connected':'No sheet connected';
   if(el('schedSub')) el('schedSub').textContent=scheduleStatus();
+  renderAppearance();
   if(el('rosterSheetSub')){
     el('rosterSheetSub').textContent=
       !syncUrl() ? 'No sheet connected, so the roster lives only on this device.'
