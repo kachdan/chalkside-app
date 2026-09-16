@@ -513,6 +513,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
         placeholder="11 Firstname Lastname&#10;Firstname Lastname 11&#10;11, Firstname Lastname&#10;11 - Firstname Lastname"></textarea>
       <button class="btn wide" id="importPreviewBtn" style="margin-top:8px">Preview import</button>
       <div id="importPreview" class="prev"></div>
+      <p class="muted" id="rosterSheetSub" style="margin-top:10px"></p>
 
       <h2 style="margin-top:24px">Google Sheet</h2>
       <button class="btn wide" id="syncSetupBtn">Sheet setup</button>
@@ -1319,6 +1320,50 @@ function parseScheduleRows(rows){
   return out;
 }
 
+/* CHALK-125. The roster half of a restore, planned the same way: worked out
+   in full before anything commits.
+
+   MERGE, never replace. A player on this device and not in the sheet is left
+   exactly alone, which is the same promise outings get. A player in both keeps
+   the LOCAL name and number: the device is where a coach corrects a typo, and
+   it is also what protects a local 01 from a sheet that returned 1. */
+function planRosterRestore(rows){
+  var known={}; S.roster.forEach(function(p){ known[normName(p.name)]=p.id; });
+  var add=[], already=0, unreadable=0, seen={}, team='';
+  (rows||[]).forEach(function(r){
+    if(!team) team=String(sheetField(r,['team','teamname'])).trim();
+    var first=String(sheetField(r,['first','firstname'])).trim();
+    var last=String(sheetField(r,['last','lastname','surname'])).trim();
+    var name=joinName(first,last)||String(sheetField(r,['name','player'])).trim();
+    /* jersey read as text, never parsed as a number, or 01 dies here */
+    var jersey=String(sheetField(r,['jersey','number'])).trim();
+    if(!name){ if(first||last||jersey) unreadable++; return; }
+    var key=normName(name);
+    if(seen[key]) return;
+    seen[key]=true;
+    if(known[key]){ already++; return; }
+    add.push({name:name,number:jersey,key:key});
+  });
+  /* only offered when this device has none. A coach who has typed a team name
+     here has said what he wants it to be, and a cache does not overrule him. */
+  var offerTeam=(team&&!teamName())?team:'';
+  return {total:(rows||[]).length,add:add,already:already,unreadable:unreadable,
+          team:team,offerTeam:offerTeam};
+}
+
+function commitRosterRestore(rp){
+  var stamp=Date.now();
+  rp.add.forEach(function(a,i){
+    S.roster.push({id:'p'+stamp+'_r'+i+Math.floor(Math.random()*99),
+                   name:a.name,number:a.number});
+  });
+  if(rp.add.length) sortRoster();
+  if(rp.offerTeam) setTeamName(rp.offerTeam);
+  save();
+  /* what came out of the sheet is what is in the sheet */
+  if(rp.add.length||rp.offerTeam) markRosterSaved();
+}
+
 /* Works out what a restore would do without doing any of it. */
 function planRestore(rows){
   var here={}; S.outings.forEach(function(o){ here[String(o.id)]=true; });
@@ -1431,6 +1476,71 @@ function unqueueDelete(id){
   setPendingDeletes(pendingDeletes().filter(function(x){ return x!==id; }));
 }
 
+/* ---------------- CHALK-125, the roster in the sheet ----------------
+   The roster lived in exactly one place, so a new phone meant typing the team
+   in again, and a restore onto a clean device brought back outings belonging
+   to players who did not exist.
+
+   This is the first thing that puts children's names anywhere but the device.
+   Dan accepted that on 16 Sep with the tradeoff stated: private to his Google
+   account, never in a repo, never on the public site, never in source. The
+   naming rule is unchanged and still hard.
+
+   The tab is a CACHE. Replaced on write, never appended to, and a failed write
+   loses nothing because the roster is still on the device. */
+var ROSTER_SAVED_KEY='chalkside_roster_saved_v1';
+
+/* The roster holds one name; the sheet holds two columns so a human can sort
+   it. First token is the first name, everything after it is the last name, so
+   "Alpha Van Der Berg" survives the round trip intact. */
+function splitName(full){
+  var t=String(full==null?'':full).replace(/\s+/g,' ').trim();
+  if(!t) return {first:'',last:''};
+  var i=t.indexOf(' ');
+  if(i<0) return {first:t,last:''};
+  return {first:t.slice(0,i),last:t.slice(i+1)};
+}
+function joinName(first,last){
+  return String(first==null?'':first).trim()+
+         (String(last==null?'':last).trim()?(' '+String(last).trim()):'');
+}
+
+/* A fingerprint of what the sheet copy should contain, so Settings can say
+   whether it is current rather than implying it. */
+function rosterFingerprint(){
+  return JSON.stringify([teamName(),S.roster.map(function(p){
+    return [String(p.number||''),String(p.name||'')];
+  })]);
+}
+function rosterIsSaved(){
+  try{ return localStorage.getItem(ROSTER_SAVED_KEY)===rosterFingerprint(); }
+  catch(e){ return false; }
+}
+function markRosterSaved(){
+  try{ localStorage.setItem(ROSTER_SAVED_KEY,rosterFingerprint()); }catch(e){}
+}
+
+/* Written when the roster changes, not on every app open. Fire and forget:
+   nothing local depends on it and a failure is recoverable by changing
+   anything, or by Send unsent. */
+function pushRoster(){
+  var url=syncUrl();
+  if(!url) return;
+  var body={action:'roster',sheet:'Roster',team:teamName(),
+            players:S.roster.map(function(p){
+              var n=splitName(p.name);
+              /* jersey as a string, every time. A number here is how 01 became
+                 1 on the restore path once already. */
+              return {jersey:String(p.number==null?'':p.number),first:n.first,last:n.last};
+            })};
+  try{
+    fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+               body:JSON.stringify(body)})
+      .then(function(r){ if(!r.ok) throw new Error('bad status'); markRosterSaved(); renderHeaders(); })
+      .catch(function(){});
+  }catch(e){}
+}
+
 function pushDelete(id){
   queueDelete(id);
   var url=syncUrl();
@@ -1461,12 +1571,17 @@ function sendUnsent(){
   if(!url){ openSyncSetup(); return; }
   var pending=S.outings.filter(function(o){return !o.synced;});
   var dels=pendingDeletes();
-  if(!pending.length&&!dels.length){ alert('Everything is already in the sheet.'); return; }
+  /* CHALK-125. A roster write that failed is not lost data, the roster is still
+     here, but the sheet copy is stale and this is the retry. */
+  var roster=!rosterIsSaved();
+  if(!pending.length&&!dels.length&&!roster){ alert('Everything is already in the sheet.'); return; }
   pending.forEach(pushToSheet);
   dels.forEach(pushDelete);
+  if(roster) pushRoster();
   var parts=[];
   if(pending.length) parts.push(pending.length+' outing'+(pending.length>1?'s':''));
   if(dels.length) parts.push(dels.length+' delete'+(dels.length>1?'s':''));
+  if(roster) parts.push('the roster');
   alert('Sending '+parts.join(' and ')+'.');
 }
 
@@ -1485,28 +1600,59 @@ function openRestore(){
   }
 
   el('sheetInner').innerHTML='<h2 class="sheetTitle">Restore from sheet</h2>'+
-    '<div class="muted">Reading Game Log\u2026</div>';
+    '<div class="muted">Reading Game Log and Roster\u2026</div>';
   openSheet();
 
-  fetchSheetRows('Game Log').then(function(rows){
-    var plan=planRestore(rows);
+  /* CHALK-125. Both tabs, but only the Game Log is required. A sheet set up
+     before this ticket has no Roster tab, and that must read as "no roster to
+     bring back" rather than as a broken restore. */
+  Promise.all([
+    fetchSheetRows('Game Log'),
+    fetchSheetRows('Roster').catch(function(){ return []; })
+  ]).then(function(res){
+    var plan=planRestore(res[0]);
+    var rp=planRosterRestore(res[1]);
     var h='<h2 class="sheetTitle">Restore from sheet</h2>';
 
-    if(!plan.add.length){
-      h+='<div class="muted">'+plan.total+' row'+(plan.total===1?'':'s')+' in the sheet. '+
+    if(!plan.add.length&&!rp.add.length&&!rp.offerTeam){
+      h+='<div class="muted">'+plan.total+' outing row'+(plan.total===1?'':'s')+' in the sheet. '+
          plan.already+' already on this device'+
          (plan.unreadable?(', '+plan.unreadable+' could not be read'):'')+
-         '. Nothing to bring back.</div>';
+         '.'+(rp.total?(' Roster tab has '+rp.total+' row'+(rp.total===1?'':'s')+', all already here.'):'')+
+         ' Nothing to bring back.</div>';
+      /* the team names disagreeing is worth saying even when there is nothing
+         to restore, or it is only ever mentioned by accident */
+      if(rp.team&&teamName()&&normName(rp.team)!==normName(teamName())){
+        h+='<div class="muted" style="margin-top:8px">The sheet says the team is '+
+           esc(rp.team)+'. This device says '+esc(teamName())+', and this device wins.</div>';
+      }
       h+='<button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
       el('sheetInner').innerHTML=h;
       return;
     }
 
-    h+='<div class="prevrow"><span class="nm">In the sheet</span><span class="num">'+plan.total+'</span></div>'+
+    h+='<div class="prevrow"><span class="nm">Outings in the sheet</span><span class="num">'+plan.total+'</span></div>'+
        '<div class="prevrow"><span class="nm">Already on this device</span><span class="num">'+plan.already+'</span></div>'+
-       '<div class="prevrow"><span class="nm"><b>Will be added</b></span><span class="num"><b>'+plan.add.length+'</b></span></div>';
+       '<div class="prevrow"><span class="nm"><b>Outings to add</b></span><span class="num"><b>'+plan.add.length+'</b></span></div>';
     if(plan.unreadable){
       h+='<div class="prevrow"><span class="nm">Could not be read, skipped</span><span class="num">'+plan.unreadable+'</span></div>';
+    }
+    if(rp.total||rp.add.length){
+      h+='<div class="prevrow" style="margin-top:10px"><span class="nm">Roster in the sheet</span><span class="num">'+rp.total+'</span></div>'+
+         '<div class="prevrow"><span class="nm"><b>Players to add</b></span><span class="num"><b>'+rp.add.length+'</b></span></div>';
+    }
+    if(rp.add.length){
+      h+='<div class="prevbad"><b>From the Roster tab</b>, joining your roster:'+
+         rp.add.map(function(a){
+           return '<div class="line">'+esc((a.number?a.number+'  ':'')+a.name)+'</div>';
+         }).join('')+'</div>';
+    }
+    if(rp.offerTeam){
+      h+='<div class="prevrow"><span class="nm">Team name</span><span class="num">'+esc(rp.offerTeam)+'</span></div>';
+    } else if(rp.team&&teamName()&&normName(rp.team)!==normName(teamName())){
+      h+='<div class="muted" style="margin-top:8px">The sheet says the team is '+
+         esc(rp.team)+'. This device says '+esc(teamName())+', and this device wins. '+
+         'Change it under Team name if that is wrong.</div>';
     }
     if(plan.newPlayerCount){
       h+='<div class="prevbad"><b>'+plan.newPlayerCount+' player'+(plan.newPlayerCount===1?'':'s')+
@@ -1517,17 +1663,29 @@ function openRestore(){
            return '<div class="line">'+esc((np.number?np.number+'  ':'')+np.name)+'</div>';
          }).join('')+'</div>';
     }
+    var bits=[];
+    if(plan.add.length) bits.push(plan.add.length+' outing'+(plan.add.length===1?'':'s'));
+    if(rp.add.length) bits.push(rp.add.length+' player'+(rp.add.length===1?'':'s'));
+    if(rp.offerTeam) bits.push('the team name');
+    var label=bits.length>1?(bits.slice(0,-1).join(', ')+' and '+bits[bits.length-1]):bits[0];
+
     h+='<div class="muted" style="margin-top:12px">Nothing already on this device is '+
-       'changed or removed.</div>'+
+       'changed or removed. Players you have here that the sheet has never seen are kept.</div>'+
        '<button class="btn dark wide" style="margin-top:14px" id="restoreGo">Restore '+
-       plan.add.length+' outing'+(plan.add.length===1?'':'s')+'</button>'+
+       esc(label)+'</button>'+
        '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
     el('sheetInner').innerHTML=h;
     el('restoreGo').addEventListener('click',function(){
+      /* roster first: an outing needs its player to exist before it lands */
+      commitRosterRestore(rp);
       commitRestore(plan);
+      var done=[];
+      if(plan.add.length) done.push(plan.add.length+' outing'+(plan.add.length===1?'':'s'));
+      var players=rp.add.length+(plan.newPlayerCount||0);
+      if(players) done.push(players+' player'+(players===1?'':'s'));
+      if(rp.offerTeam) done.push('the team name');
       el('sheetInner').innerHTML='<h2 class="sheetTitle">Restore from sheet</h2>'+
-        '<div class="muted">Brought back '+plan.add.length+' outing'+(plan.add.length===1?'':'s')+
-        (plan.newPlayerCount?(' and added '+plan.newPlayerCount+' player'+(plan.newPlayerCount===1?'':'s')):'')+
+        '<div class="muted">Brought back '+esc(done.join(', ')||'nothing')+
         '.</div><button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
     });
   }).catch(function(err){
@@ -1881,6 +2039,7 @@ function commitImport(rows,replace){
   });
   sortRoster();
   save();
+  pushRoster();
   el('importText').value='';
   el('importPreview').innerHTML='<div class="empty">'+
     (replace?'Roster replaced with ':'Added ')+rows.length+' player'+(rows.length===1?'':'s')+'.</div>';
@@ -1897,11 +2056,15 @@ function addPlayer(){
          if(m2){ v=m2[1].trim(); num=m2[2]; } }
   S.roster.push({id:'p'+Date.now()+Math.floor(Math.random()*99),name:v,number:num});
   sortRoster();
-  el('newName').value=''; save(); renderAll();
+  el('newName').value=''; save(); pushRoster(); renderAll();
 }
+var teamNameTimer=null;
 el('teamNameFld').addEventListener('input',function(){
   setTeamName(this.value);
   renderHeaders();
+  /* one write when he stops typing, not one per keystroke */
+  if(teamNameTimer) clearTimeout(teamNameTimer);
+  teamNameTimer=setTimeout(pushRoster,1200);
 });
 el('importPreviewBtn').addEventListener('click',renderImportPreview);
 el('addBtn').addEventListener('click',addPlayer);
@@ -1912,7 +2075,7 @@ el('rosterList').addEventListener('click',function(e){
   if(!confirm('Remove this player? Their logged outings stay in the log.')) return;
   S.roster=S.roster.filter(function(p){return p.id!==b.dataset.rm;});
   if(S.game&&S.game.pitcherId===b.dataset.rm) S.game.pitcherId=null;
-  save(); renderAll();
+  save(); pushRoster(); renderAll();
 });
 el('oppPlus').addEventListener('click',function(){S.opp++;save();renderRoster();});
 el('oppMinus').addEventListener('click',function(){S.opp=Math.max(0,S.opp-1);save();renderRoster();});
@@ -1993,6 +2156,13 @@ function renderHeaders(){
 
   el('settingsSub').textContent=savedSyncUrl()?'Sheet connected':'No sheet connected';
   if(el('schedSub')) el('schedSub').textContent=scheduleStatus();
+  if(el('rosterSheetSub')){
+    el('rosterSheetSub').textContent=
+      !syncUrl() ? 'No sheet connected, so the roster lives only on this device.'
+      : !S.roster.length ? 'No players yet. Restore from sheet can bring a roster back.'
+      : rosterIsSaved() ? 'Saved to the Roster tab. Restore from sheet brings it back on a new device.'
+      : 'Not saved to the sheet yet. Send unsent will retry it.';
+  }
 }
 
 function renderAll(){ renderCount(); renderTeam(); renderLog(); renderRoster(); renderHeaders(); }
