@@ -1108,8 +1108,11 @@ function commitOuting(){
   /* game is local only. outingPayload maps the sheet's columns explicitly, so
      this never reaches it: the Game Log is positional and a new column would
      shift every field after it across a season. */
+  /* S.game.seq, not currentSeq(): the outing belongs to the game it was thrown
+     in, and at a midnight rollover that game is no longer today, which would
+     have relabelled yesterday's game two as game one on the way to the log. */
   var rec={id:'o'+Date.now(),pitcherId:S.game.pitcherId,date:S.game.date,
-           game:currentSeq(),
+           game:(S.game.seq||1),
            pitches:S.game.count,opponent:(S.game.opponent||''),synced:false};
   S.outings.push(rec);
   save();
