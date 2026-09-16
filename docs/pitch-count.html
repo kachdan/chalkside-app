@@ -323,34 +323,45 @@ nav button{
 nav button svg{width:23px;height:23px;stroke:currentColor;stroke-width:2;fill:none;
   stroke-linecap:round;stroke-linejoin:round;}
 nav button:active{background:var(--surface-tap);}
-/* The active pill used to hardcode the primary as rgba, which meant it did not
-   follow a brand change. Drawn from currentColor now, which is --primary on an
-   active tab, as a layer so no color-mix is needed. */
+/* CHALK-128. The active tab carries NO fill, in any state. A filled background
+   read as a button rather than as a position, and it was the heaviest thing in
+   the bar. Colour alone carries it now. */
 nav button{position:relative;z-index:0;}
-nav button.on{color:var(--brand-primary);font-weight:600;}
-nav button.on::before{
-  content:'';position:absolute;top:0;right:0;bottom:0;left:0;
-  border-radius:inherit;background:currentColor;opacity:.10;z-index:-1;
-}
+nav button.on{color:var(--text-accent);font-weight:600;}
 nav button.on svg{stroke-width:2.35;}
 
-/* Count sits in the bar rather than above the content, lifted past the bar's
-   top edge. No ring: the circle crosses the bar's border directly, and its own
-   drop shadow does the separating. */
+/* CHALK-128. Count sits in the bar rather than above the content, lifted past
+   the bar's top edge. No ring: the circle crosses the bar's border directly and
+   its own drop shadow does the separating.
+
+   Two states, because a permanently filled control is a call to action and this
+   one is the location marker for the most important screen in the app. A blue
+   FAB while sitting on Settings said he was somewhere he was not. */
 nav button.fab{
   flex:0 0 auto;align-self:flex-start;
   width:72px;height:72px;min-height:0;padding:0;gap:0;
   margin:-20px 6px 0;
-  border-radius:50%;border:0;
-  background:var(--brand-primary);color:var(--text-on-accent);
+  border-radius:50%;
+  /* INACTIVE: the page's own colour, held up by a hairline and the shadow */
+  background:var(--surface-page);
+  border:1px solid var(--border-rule);
+  /* the baseball stays brand blue, never grey. It is the app's own mark, not a
+     state indicator, and greying it would read as the feature being
+     unavailable. What changes between states is the emphasis of the container,
+     not the identity of the thing. */
+  color:var(--brand-primary);
   box-shadow:0 4px 12px rgba(22,24,26,.22);
 }
-/* 32 in a 72 circle leaves 20px of colour each side. At 28 the seam stitches
-   fused into the seam curves; they separate at 32. */
-nav button.fab svg{width:32px;height:32px;stroke-width:2;}
-nav button.fab:active{background:var(--brand-primary-strong);}
-/* active is the circle deepening, not the pill the others get */
-nav button.fab.on{background:var(--brand-primary-strong);color:var(--text-on-accent);}
+/* 40 in a 72 circle. It was 32; Dan set 40 in Figma and called it final. */
+nav button.fab svg{width:40px;height:40px;stroke-width:2;}
+nav button.fab:active{background:var(--surface-raised);}
+/* ACTIVE: the container fills, the mark inverts, the border goes */
+nav button.fab.on{
+  background:var(--brand-primary);
+  border-color:transparent;
+  color:var(--text-on-accent);
+}
+nav button.fab.on:active{background:var(--brand-primary-strong);}
 
 /* ---------- lists ---------- */
 .card{
