@@ -273,6 +273,42 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
 }
 .prow .psub{display:block;font-size:13.5px;color:var(--ink-soft);margin-top:2px;}
 .prow>.tag,.prow>.stepper,.prow>.btn{flex:0 0 auto;}
+/* CHALK-110 state line. One row, three parts: an advance, a statement, and the
+   only correction. 44px targets on both buttons, used one handed in the sun. */
+.stateline{
+  display:flex;align-items:center;gap:10px;
+  padding:0 0 10px;
+}
+.stateline .inn{
+  display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;
+  min-height:44px;padding:0 12px;border:0;border-radius:10px;
+  background:var(--paper-2);color:var(--primary);
+  font:inherit;font-size:15px;font-weight:600;cursor:pointer;
+}
+.stateline .inn:active{background:var(--rule);}
+.stateline .belief{
+  flex:1 1 auto;min-width:0;
+  font-size:14px;color:var(--ink-soft);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.stateline .belief b{color:var(--ink);font-weight:600;}
+
+/* the catcher picker rows: the cost sits on the row it applies to, at the
+   moment of the decision, not in a toast afterward */
+.crow{
+  display:flex;align-items:center;gap:10px;width:100%;
+  min-height:56px;padding:8px 12px;margin-top:6px;
+  border:0;border-radius:12px;background:var(--paper-2);
+  font:inherit;text-align:left;cursor:pointer;
+}
+.crow:disabled{opacity:.55;cursor:default;}
+.crow .cn{flex:1 1 auto;min-width:0;font-size:16px;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.crow .cin{flex:0 0 auto;font-size:13px;color:var(--ink-soft);
+  font-variant-numeric:tabular-nums;}
+.crow .ccost{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--caution-dark);}
+.crow .ctick{flex:0 0 auto;width:18px;color:var(--safe);font-weight:700;}
+
 .tag{
   position:relative;z-index:0;
   font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;
@@ -414,6 +450,18 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
 
     <!-- pitcher picked: the counting interface -->
     <div id="countLive" hidden>
+      <!-- CHALK-110. The app's belief, always on screen. It states rather than
+           asks, so being wrong is visible instead of silent, and Change is
+           always there rather than appearing only when something looks off. -->
+      <div class="stateline">
+        <button class="inn" id="inningBtn" aria-label="Start the next inning">
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M12 5l7 12H5z" fill="currentColor"/></svg>
+          <span id="inningNum">1st</span>
+        </button>
+        <div class="belief" id="beliefText"></div>
+        <button class="swap" id="catcherBtn">Change</button>
+      </div>
+
       <div class="who">
         <div class="name" id="activeName">No pitcher</div>
         <button class="swap" id="swapBtn">Change</button>
@@ -456,7 +504,7 @@ nav button.fab.on{background:var(--primary-dark);color:#fff;}
            it is tapped every inning, so it goes first. The list below is a
            read only summary that also appears on the Count screen. -->
       <h2>Innings caught this game</h2>
-      <p class="muted" style="margin:-6px 0 2px">Tap + when a player finishes an inning behind the plate.</p>
+      <p class="muted" style="margin:-6px 0 2px">Counted from the inning line on the Count screen. Correct it here if the app got an inning wrong.</p>
       <p class="muted" style="margin:0 0 12px">More than 3 innings behind the plate and he cannot pitch in this game.</p>
       <div id="catchList"></div>
       <h2 style="margin-top:26px">Who can pitch today</h2>
@@ -875,14 +923,114 @@ function currentSeq(){
 function outingSeq(o){
   return (o.game===undefined||o.game===null||o.game==='')?null:+o.game;
 }
-function caughtThisGame(pid){
-  if(!gameIsToday()||!S.game.catchers) return 0;
-  return S.game.catchers[pid]||0;
+/* ---------------- CHALK-110, the inning ----------------
+   The stepper was a rule input wearing a scoreboard's clothes: its only job is
+   to answer whether a kid can still pitch, and nothing on that screen said so.
+   Now the app holds a belief about the inning and who is pitching and catching,
+   shows it, and derives the tally from it.
+
+   Three roles only, and only two are recorded: pitcher and catcher. Bench is
+   everyone else, which is why it needs no data. Nine positions buy nothing any
+   rule requires and are data entry nobody does during a game. */
+function currentInning(){
+  return (gameIsToday()&&S.game.inning)?S.game.inning:1;
 }
-/* Only today's tally survives into a new S.game, so changing pitcher cannot
-   resurrect a stale object. */
-function carriedCatchers(){
-  return (gameIsToday()&&S.game.catchers)?S.game.catchers:{};
+function inningList(){
+  if(!gameIsToday()||!S.game.innings) return [];
+  return S.game.innings;
+}
+/* The assignment for an inning, 1 based. */
+function inningAt(n){
+  var l=inningList();
+  return l[n-1]||null;
+}
+function thisInning(){ return inningAt(currentInning()); }
+
+/* Derived, not entered. Every inning this player was the catcher.
+   catchAdj is the manual correction on top: deriving it is the goal, trusting
+   the derivation absolutely is not. A coach who knows the app missed an inning
+   can still say so, and the correction is visible rather than silent. */
+function derivedCaught(pid){
+  var n=0;
+  inningList().forEach(function(a){ if(a&&a.c===pid) n++; });
+  return n;
+}
+function catchAdj(pid){
+  if(!gameIsToday()||!S.game.catchAdj) return 0;
+  return +S.game.catchAdj[pid]||0;
+}
+function caughtThisGame(pid){
+  if(!gameIsToday()) return 0;
+  /* A game stored before CHALK-110 has a hand entered map and no innings. Read
+     it directly rather than depending on the migration below having run: the
+     read is the last line of defence and does not trust state it did not check
+     itself, same as CHALK-101. Without this a coach mid game sees a catcher
+     tally silently become zero, which is a rule answer, not a display bug. */
+  if(!S.game.innings&&S.game.catchers) return +S.game.catchers[pid]||0;
+  return Math.max(0,derivedCaught(pid)+catchAdj(pid));
+}
+
+/* What assigning this player as catcher for one more inning would cost him.
+   Shown on the row at the moment of the decision, never enforced by hiding:
+   Dan decides, the app makes the consequence visible. */
+function catcherCost(pid){
+  var now=caughtThisGame(pid);
+  if(now>3) return 'off the mound';
+  if(now===3) return 'loses the mound';
+  return '';
+}
+
+/* Not called ordinal(): there is already one of those further down, for the
+   rest day verdict, and it only ever handles 1 to 3. Function declarations
+   hoist, so the later one silently won and every inning past the 3rd rendered
+   as "3rd". */
+function inningLabel(n){
+  var suf=['th','st','nd','rd'], v=n%100;
+  return n+(suf[(v-20)%10]||suf[v]||suf[0]);
+}
+/* CHALK-110. carriedCatchers() is gone with the object rebuilding it served:
+   setPitcher mutates, so nothing has to be carried anywhere.
+
+   One place that says what a game is, so a field cannot be dropped by one of
+   the several sites that used to build this object by hand. */
+function freshGame(seq){
+  return {date:todayStr(),seq:seq||1,pitcherId:null,count:0,marks:[],
+          inning:1,innings:[],catchAdj:{}};
+}
+
+/* CHALK-110. Advancing inherits the previous inning's pitcher and catcher, so
+   an inning where nothing changed costs zero taps beyond the advance itself.
+   It never prompts and never blocks: the app states what it believes and the
+   state line is always correctable. */
+function assignInning(n,p,c){
+  if(!S.game.innings) S.game.innings=[];
+  var cur=S.game.innings[n-1];
+  /* A brand new inning with nothing said about the pitcher takes whoever is on
+     the mound. Without this, setting only the catcher wrote an inning claiming
+     nobody was pitching, while the state line showed the pitcher from S.game
+     and looked right. The record would have disagreed with the screen, which
+     is the failure this ticket exists to prevent. */
+  var basis=cur||{p:S.game.pitcherId||null,c:null};
+  S.game.innings[n-1]={p:(p===undefined?basis.p:p)||null,
+                       c:(c===undefined?basis.c:c)||null};
+}
+function advanceInning(){
+  var prev=thisInning()||{};
+  S.game.inning=currentInning()+1;
+  assignInning(S.game.inning,prev.p||S.game.pitcherId||null,prev.c||null);
+  save();
+}
+
+/* Changing the pitcher no longer rebuilds S.game. It used to, and every site
+   that did had to remember to carry the date, the sequence and the catcher
+   tally forward; CHALK-108 already added one field to that list. Mutating the
+   two things that actually change cannot drop the rest. */
+function setPitcher(id){
+  if(!S.game) S.game=freshGame(1);
+  S.game.pitcherId=id||null;
+  S.game.count=0;
+  S.game.marks=[];
+  assignInning(currentInning(),id||null,undefined);
 }
 
 /* ---------------- count screen ---------------- */
@@ -999,11 +1147,29 @@ function selectRow(id){
 }
 
 function startOuting(id){
-  /* same game, new pitcher: the sequence and the catcher tally both carry */
-  S.game={date:todayStr(),seq:currentSeq(),pitcherId:id,count:0,marks:[],
-          catchers:carriedCatchers()};
+  setPitcher(id);
   pickedId=null;
   save(); renderAll();
+}
+
+/* CHALK-110. States, never asks. A blank half here would read as "nobody",
+   which is a claim; "not set" is the truth and is correctable in one tap. */
+function shortName(id){
+  if(!id) return null;
+  var p=S.roster.filter(function(r){return r.id===id;})[0];
+  if(!p) return null;
+  return String(p.name).split(' ')[0]||p.name;
+}
+function renderStateLine(){
+  if(!el('inningNum')) return;
+  el('inningNum').textContent=inningLabel(currentInning());
+  var a=thisInning()||{};
+  var pn=shortName(a.p||S.game&&S.game.pitcherId);
+  var cn=shortName(a.c);
+  el('beliefText').innerHTML=
+    (pn?('<b>'+esc(pn)+'</b> P'):'<span>no pitcher</span>')+
+    '  \u00b7  '+
+    (cn?('<b>'+esc(cn)+'</b> C'):'<span>catcher not set</span>');
 }
 
 function renderCount(){
@@ -1015,6 +1181,7 @@ function renderCount(){
   el('countLive').hidden=!p;
   if(!p){ renderPickList(); return; }
 
+  renderStateLine();
   el('activeName').textContent=p.name;
   var c=S.game?S.game.count:0;
   el('countNum').textContent=c;
@@ -1185,7 +1352,7 @@ el('sheet').addEventListener('click',function(e){
       if(!confirm('End the current outing and log '+S.game.count+' pitches?')) return;
       commitOuting();
     }
-    S.game={date:todayStr(),seq:currentSeq(),pitcherId:id,count:0,marks:[],catchers:carriedCatchers()};
+    setPitcher(id);
     save(); closeSheet(); renderCount();
   }
 });
@@ -1721,11 +1888,47 @@ function endOuting(){
   var p=activePlayer();
   if(!confirm('Log '+S.game.count+' pitches for '+(p?p.name:'this pitcher')+'?')) return;
   commitOuting();
-  /* the outing ends, the game does not */
-  S.game={date:todayStr(),seq:currentSeq(),pitcherId:null,count:0,marks:[],
-          catchers:carriedCatchers()};
+  /* the outing ends; the game, the inning and the catcher do not */
+  setPitcher(null);
   save(); renderAll(); go('team');
 }
+
+/* CHALK-110. One tap selects and closes. No confirm step, because a wrong tap
+   is corrected by another tap from the same line, and a confirm on every inning
+   is the friction this ticket exists to remove.
+
+   The cost of a choice is shown on the row it applies to, at the moment of
+   choosing. It is never enforced by hiding the row: losing the mound is Dan's
+   call to make, and the app's job is to make sure he makes it knowingly.
+
+   The one thing genuinely refused is a player who has reached 75, who may stay
+   in the game anywhere except behind the plate. That is a rule, not a choice. */
+function openCatcherPicker(){
+  if(!S.roster.length){ go('roster'); return; }
+  var cur=(thisInning()||{}).c||null;
+  var h='<h2 class="sheetTitle">Who is catching?</h2>'+
+        '<div class="muted" style="margin:-6px 0 10px">'+inningLabel(currentInning())+' inning</div>';
+  h+=S.roster.map(function(p){
+    var n=caughtThisGame(p.id);
+    var cost=(p.id===cur)?'':catcherCost(p.id);
+    var maxed=hitMaxToday(p.id);
+    return '<button class="crow" data-cat="'+p.id+'"'+(maxed?' disabled aria-disabled="true"':'')+'>'+
+      '<span class="cn">'+esc(p.name)+'</span>'+
+      (maxed?'<span class="ccost">reached '+MAX+', cannot catch</span>'
+            :(cost?'<span class="cin">'+n+' in,</span><span class="ccost">'+cost+'</span>'
+                  :'<span class="cin">'+n+' in</span>'))+
+      '<span class="ctick">'+(p.id===cur?'\u2713':'')+'</span>'+
+      '</button>';
+  }).join('');
+  h+='<button class="btn wide" style="margin-top:12px" data-close="1">Cancel</button>';
+  el('sheetInner').innerHTML=h;
+  openSheet();
+}
+el('sheet').addEventListener('click',function(e){
+  var b=e.target.closest('[data-cat]'); if(!b||b.disabled) return;
+  assignInning(currentInning(),undefined,b.dataset.cat);
+  save(); closeSheet(); renderAll();
+});
 
 /* ---------------- team ---------------- */
 function renderTeam(){
@@ -1764,13 +1967,17 @@ function renderTeam(){
 }
 el('s-team').addEventListener('click',function(e){
   var b=e.target.closest('[data-c]'); if(!b) return;
-  if(!S.game) S.game={date:todayStr(),seq:1,pitcherId:null,count:0,marks:[],catchers:{}};
-  if(!S.game.catchers) S.game.catchers={};
+  if(!S.game) S.game=freshGame(1);
+  if(!S.game.catchAdj) S.game.catchAdj={};
   var id=b.dataset.id;
   /* refuse in the handler too, so a stale render cannot get one past */
   if((+b.dataset.c)>0&&hitMaxToday(id)) return;
-  S.game.catchers[id]=Math.max(0,(S.game.catchers[id]||0)+(+b.dataset.c));
-  save(); renderTeam();
+  /* CHALK-110. This is now a CORRECTION on top of what the innings derive, not
+     the tally itself. It is clamped so the total cannot go below zero rather
+     than letting the adjustment run negative under a derived count. */
+  var want=Math.max(0,caughtThisGame(id)+(+b.dataset.c));
+  S.game.catchAdj[id]=want-derivedCaught(id);
+  save(); renderAll();
 });
 
 /* ---------------- log ---------------- */
@@ -1894,6 +2101,11 @@ function openScheduleSetup(){
   });
 }
 
+el('inningBtn').addEventListener('click',function(){
+  advanceInning();
+  renderAll();
+});
+el('catcherBtn').addEventListener('click',openCatcherPicker);
 el('schedBtn').addEventListener('click',openScheduleSetup);
 el('syncSetupBtn').addEventListener('click',openSyncSetup);
 el('sendUnsentBtn').addEventListener('click',sendUnsent);
@@ -2087,8 +2299,7 @@ function endGame(){
   /* an outing still on the counter is real and goes to the log rather than
      being lost to the reset */
   commitOuting();
-  S.game={date:todayStr(),seq:(gameIsToday()?currentSeq()+1:1),
-          pitcherId:null,count:0,marks:[],catchers:{}};
+  S.game=freshGame(gameIsToday()?currentSeq()+1:1);
   pickedId=null;
   save();
 }
@@ -2172,7 +2383,7 @@ function renderAll(){ renderCount(); renderTeam(); renderLog(); renderRoster(); 
 function rolloverIfNewDay(){
   if(!S.game||S.game.date===todayStr()) return false;
   commitOuting();
-  S.game={date:todayStr(),seq:1,pitcherId:null,count:0,marks:[],catchers:{}};
+  S.game=freshGame(1);
   pickedId=null;
   save();
   return true;
@@ -2189,6 +2400,21 @@ document.addEventListener('visibilitychange',function(){
 /* A game in progress from before CHALK-108 has no sequence. It is game one of
    its date. S.game only: the outing log is not rewritten. */
 if(S.game&&!S.game.seq) S.game.seq=1;
+
+/* CHALK-110. A game in progress from before the inning existed has a hand
+   entered catchers map and no innings. Carried across as the manual
+   CORRECTION, not as derived innings, because that is what it is: a number a
+   coach typed, with no innings behind it. The tally a coach is looking at does
+   not change, which is the only thing that matters mid game. */
+if(S.game&&!S.game.innings){
+  S.game.inning=S.game.inning||1;
+  /* seed the inning in progress with whoever is on the mound, so the record
+     and the screen agree from the first render rather than from the first tap */
+  S.game.innings=[{p:S.game.pitcherId||null,c:null}];
+  S.game.catchAdj=S.game.catchAdj||S.game.catchers||{};
+  delete S.game.catchers;   /* one source of truth, not two that can disagree */
+  save();
+}
 
 rolloverIfNewDay();
 renderAll();
