@@ -50,7 +50,7 @@
 
   /* borders */
   --border-rule:#D9DCE0;
-  --border-strong:#949494;
+  --border-strong:#C3C8CE;
 
   /* text */
   --text-primary:#16181A;
@@ -93,40 +93,40 @@
    phone at chest height is readable from the other bench, and what is readable
    is a pitcher's count and who is one inning from losing the mound.
 
-   Values marked FIGMA came out of the file. Values marked DERIVED were not
-   bound to any layer in the four frames, so the file could not give them to
-   me; they follow the transform the file demonstrably applied elsewhere and
-   were then checked for contrast against the dark page. Every DERIVED value is
-   a question for Dan, not a decision I made quietly. */
+   Every value below is the Figma collection's own. Nine of them are not bound
+   to any layer in the four frames, so the MCP could not surface them and they
+   were read out of the collection directly. Nothing here is interpolated. */
 [data-theme="dark"]{
-  --surface-page:#101214;            /* FIGMA */
-  --surface-raised:#1A1D21;          /* FIGMA */
-  --surface-control:#1A1D21;         /* FIGMA */
-  --surface-tap:#22262B;             /* DERIVED, one step above raised */
+  --surface-page:#101214;
+  --surface-raised:#1A1D21;
+  --surface-control:#1A1D21;
+  --surface-tap:#23272B;
 
-  --border-rule:#2C3136;             /* FIGMA */
-  --border-strong:#454B52;           /* DERIVED, visible on page, below text */
+  --border-rule:#2C3136;
+  --border-strong:#3A3F47;
 
-  --text-primary:#EDEFF1;            /* FIGMA, 16.3:1 on the page */
-  --text-secondary:#9AA1A8;          /* FIGMA, 7.2:1 */
-  --text-tertiary:#949494;           /* DERIVED, unchanged: already 6.2:1 */
-  --text-count:#C9CDD1;              /* FIGMA, 11.7:1 */
-  --text-accent:#86B6E2;             /* FIGMA, 8.8:1 */
-  --text-on-accent:#F4F7FA;          /* FIGMA */
+  --text-primary:#EDEFF1;
+  --text-secondary:#9AA1A8;
+  --text-tertiary:#7E858C;
+  --text-count:#C9CDD1;
+  --text-accent:#86B6E2;
+  --text-on-accent:#F4F7FA;
 
-  --brand-primary:#2A6FAE;           /* FIGMA */
-  --brand-primary-strong:#1D5C96;    /* DERIVED, the pressed state of the above */
-  --brand-tint:#15293C;              /* FIGMA */
+  --brand-primary:#2A6FAE;
+  --brand-primary-strong:#1E5A94;
+  --brand-tint:#15293C;
 
-  --status-safe:#4FAE5D;             /* FIGMA, 6.7:1 */
-  --status-caution:#D0942E;          /* DERIVED, 7.1:1 */
-  --status-caution-strong:#AC7720;   /* DERIVED, 4.8:1 */
-  --status-stop:#E63B48;             /* DERIVED, 4.5:1 */
-  --status-info:#4078E9;             /* DERIVED, 4.5:1 */
+  --status-safe:#4FAE5D;
+  --status-caution:#E0A63E;
+  --status-caution-strong:#C98E22;
+  --status-stop:#E8434F;
+  --status-info:#5B93FF;
 
-  /* FIGMA, all four. Checked rather than assumed: worst separation is
-     1 day against 2 days at deltaE 4.2, and the same pair in Light is 4.0, so
-     Dark is marginally better than what ships today. They do not collapse. */
+  /* The four bands, checked rather than assumed. Worst separation is 1 day
+     against 2 days at deltaE 4.2; the same pair in Light is 4.0, so Dark is
+     marginally better than what ships today. They do not collapse into four
+     browns. That the pair is tight in LIGHT is a separate problem and has its
+     own ticket. */
   --band-rest-0:#223A27;
   --band-rest-0-progress:#4FAE5D;
   --band-rest-1:#3E3520;

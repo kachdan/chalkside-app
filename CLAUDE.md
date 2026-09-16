@@ -290,6 +290,21 @@ verification run measured the archive repo instead of this one; the only reason
 it surfaced was a function coming back undefined. A run that cannot say what it
 measured did not verify anything.
 
+### A read taken mid-recalc is not a measurement
+
+`getComputedStyle` in the same block as the DOM work that caused the change can
+return the previous frame's values. It cost two false alarms in CHALK-126: a
+theme flip that read as not having happened, and a FAB that read as regressed
+when it had not. Force a reflow first, `void document.body.offsetHeight`, or
+read in a later call.
+
+This is the third verification this week that measured the wrong thing. The
+others were an `http.server` from an earlier session holding port 8000, and a
+guard tested through the script path while the docs prescribe a symlink. The
+pattern is the same every time: the test ran, it went green, and it was not
+looking at the thing it claimed to look at. A green result is worth exactly as
+much as the evidence that it measured the right object.
+
 ### Always run the resume path
 
 Two bugs have come from the same place: the app crossing midnight, and an iOS
