@@ -513,10 +513,22 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
    tappable: shorter, page fill, the lighter rule, no shadow. The hierarchy is
    the instruction, so nobody has to be told which one they hit all game.
    Measurements are the Figma frame: 175 wide, 152 and 120 tall, 12px gutters. */
-.bhead{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-12);}
-.bhead h1{margin:0;}
-.bhead .btn{flex:0 0 auto;min-height:var(--size-tap-sm);padding:10px 14px;font-size:14px;}
-.bhead .btn[disabled]{opacity:.4;}
+/* CHALK-111. Foul and Undo are a pair at 70px, both secondary, above the one
+   primary. The longest label the app can produce is "Undo new batter" at 15
+   characters; it is allowed to wrap to two lines rather than being shortened,
+   because knowing WHAT you are undoing is the whole reason the label names its
+   target. */
+.pairrow{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-12);margin-top:var(--space-20);}
+.act2{
+  min-height:70px;
+  background:var(--surface-control);
+  border:1.5px solid var(--border-rule);
+  border-radius:var(--radius-lg);
+  font-size:17px;font-weight:600;
+  line-height:1.2;padding:10px 12px;
+  display:flex;align-items:center;justify-content:center;text-align:center;
+}
+.act2[disabled]{opacity:.4;}
 
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-12);}
 .tile{
@@ -881,12 +893,9 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
        missed. Two visual tiers do the teaching, so a first-time user taps once
        and learns without being told. -->
   <section class="screen" id="s-batting">
-    <header class="phead bhead">
-      <div>
-        <div class="eyebrow">We are batting</div>
-        <h1 id="batInningTitle">1st inning</h1>
-      </div>
-      <button class="btn" id="batUndo" disabled>Undo</button>
+    <header class="phead">
+      <div class="eyebrow">We are batting</div>
+      <h1 id="batInningTitle">1st inning</h1>
     </header>
 
     <div class="pad">
@@ -914,7 +923,14 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
         </button>
       </div>
 
-      <button class="btn wide" id="batFoul" style="margin-top:20px">Foul</button>
+      <!-- CHALK-111. Undo sits with Foul, not in the header. In the header it
+           read like Share in the Log, a settings-shaped affordance, and undoing
+           during an at bat is a frequent in-game action that belongs beside the
+           other in-game controls. -->
+      <div class="pairrow">
+        <button class="btn act2" id="batFoul">Foul</button>
+        <button class="btn act2" id="batUndo" disabled>Undo</button>
+      </div>
       <button class="btn primary wide" id="batNew" style="margin-top:10px">New batter</button>
       <p class="muted" style="margin-top:12px">Foul is for when you are watching.
       New batter is for when you were not: tap it and the count starts fresh.</p>
@@ -1747,7 +1763,13 @@ function addStrike(){
   save(); renderBatting();
 }
 /* A foul with two strikes is not a third strike. Without this, tapping strike
-   on a foul invents an out, and an invented out ends a half that has not. */
+   on a foul invents an out, and an invented out ends a half that has not.
+
+   NOT A BUG, and do not "fix" it: four Foul taps take the strike to 1, then 2,
+   then stop. That is correct baseball. A foul IS a strike below two strikes and
+   only stops counting at two. Dan raised it, it was tested against the live app
+   on 17 Sep, and the behaviour is right. You can foul off indefinitely at two
+   strikes; the first two fouls are still strikes. */
 function addFoul(){
   var c=bat();
   if(c.s>=2) return;                 /* deliberately nothing */
