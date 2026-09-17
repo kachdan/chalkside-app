@@ -272,25 +272,33 @@ input,select{
 /* rest-cost ribbon: the signature element */
 .ribbon{padding:0 16px 4px;}
 .ribbon .bars{display:flex;gap:3px;height:16px;}
-.ribbon .seg{
+.ribbon .band{
   flex:1;position:relative;overflow:hidden;
   border-radius:4px;background:transparent;
 }
-/* CHALK-129. Each band carries its own track and its own fill, rather than one
+/* CHALK-132. This is .band and not .seg. It WAS .seg, and when CHALK-109
+   unscoped .seg for the share pills the pill's own min-height:30px and 12px
+   side padding leaked onto all four ribbon segments, which live in a 16px tall
+   .bars. They overflowed the parent and collided with the tick labels.
+
+   Rescoping would have moved the bug a third time. Two unrelated components
+   were sharing one class name, which is the thing to fix.
+
+   CHALK-129. Each band carries its own track and its own fill, rather than one
    tier colour used at 20% and at full. The old way is what made 1 day and 2
    days indistinguishable: both derived from an amber, so both tracks were the
    same wash. These are eight separate values off the ramp. */
-.ribbon .seg[data-d="0"]{--track:var(--band-rest-0-track);--fill:var(--band-rest-0-fill);}
-.ribbon .seg[data-d="1"]{--track:var(--band-rest-1-track);--fill:var(--band-rest-1-fill);}
-.ribbon .seg[data-d="2"]{--track:var(--band-rest-2-track);--fill:var(--band-rest-2-fill);}
-.ribbon .seg[data-d="3"]{--track:var(--band-rest-3-track);--fill:var(--band-rest-3-fill);}
+.ribbon .band[data-d="0"]{--track:var(--band-rest-0-track);--fill:var(--band-rest-0-fill);}
+.ribbon .band[data-d="1"]{--track:var(--band-rest-1-track);--fill:var(--band-rest-1-fill);}
+.ribbon .band[data-d="2"]{--track:var(--band-rest-2-track);--fill:var(--band-rest-2-fill);}
+.ribbon .band[data-d="3"]{--track:var(--band-rest-3-track);--fill:var(--band-rest-3-fill);}
 /* the track: the band has not been reached */
-.ribbon .seg::before{
+.ribbon .band::before{
   content:'';position:absolute;top:0;right:0;bottom:0;left:0;
   background:var(--track);
 }
 /* the fill: reached, or being filled right now, painted over its own track */
-.ribbon .seg i{
+.ribbon .band i{
   display:block;height:100%;width:0%;
   background:var(--fill);position:relative;
   transition:width .18s ease;
@@ -789,10 +797,10 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 
       <div class="ribbon">
         <div class="bars">
-          <div class="seg" data-d="0"><i id="seg0"></i></div>
-          <div class="seg" data-d="1"><i id="seg1"></i></div>
-          <div class="seg" data-d="2"><i id="seg2"></i></div>
-          <div class="seg" data-d="3"><i id="seg3"></i></div>
+          <div class="band" data-d="0"><i id="band0"></i></div>
+          <div class="band" data-d="1"><i id="band1"></i></div>
+          <div class="band" data-d="2"><i id="band2"></i></div>
+          <div class="band" data-d="3"><i id="band3"></i></div>
         </div>
         <div class="ticks"><span>0 rest</span><span>1 day</span><span>2 days</span><span>3 days</span></div>
       </div>
@@ -1866,7 +1874,7 @@ function renderCount(){
   for(var i=0;i<4;i++){
     var lo=spans[i][0],hi=spans[i][1];
     var f=Math.max(0,Math.min(1,(day-lo)/(hi-lo)))*100;
-    el('seg'+i).style.width=f+'%';
+    el('band'+i).style.width=f+'%';
   }
 
   var v=el('verdict');

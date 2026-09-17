@@ -347,7 +347,30 @@ paints `rgb(239,239,239)`. Against Light's `#F4F5F7` that is invisible; on a
 dark sheet it is a white box.
 
 So: **when a descendant-scoped class is reused anywhere else, give it an
-unscoped base rule first.** `.swap` and `.seg` are both unscoped now.
+unscoped base rule first.**
+
+**But count the components before you unscope.** That rule assumes one
+component per class name. `.seg` was used by TWO: the segmented-control pill and
+the rest ribbon's four segments. Unscoping it gave the ribbon the pill's
+`min-height:30px` and 12px side padding, so four 30px segments rendered inside a
+16px `.bars` and collided with the tick labels. The bug moved rather than went
+away, and it shipped.
+
+    if one component uses the class   unscope it
+    if more than one                  RENAME, do not unscope
+
+The ribbon segment is `.band` now and `.seg` belongs to the pill alone.
+
+### A third kind of check: rendered geometry
+
+`tools/check-geometry.js` reports children rendering taller than the parent box
+meant to contain them. 144 value assertions stayed green through the `.seg`
+regression because a suite that asserts on values cannot see layout at all.
+That makes three kinds, and all three are needed:
+
+    static          ordering and name faults          check-names, node --check
+    browser colour  resolution faults                 check-unstyled.js
+    browser layout  geometry faults                   check-geometry.js
 
 `tools/check-unstyled.js` catches it at runtime. It is deliberately not a static
 check: I wrote that version first and it flagged `.fab`, `.inn`, `.prow` and
