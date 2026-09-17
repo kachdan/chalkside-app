@@ -1793,6 +1793,59 @@ function openSheet(){
   el('sheet').classList.add('on');
   el('sheetInner').scrollTop=0;
 }
+/* ---------------- CHALK-130, the app's own dialogs ----------------
+   A native confirm cannot be styled, so in Dark it is a full brightness white
+   iOS dialog sitting on top of a dark app. Dan sees one every time he changes
+   pitchers, which is exactly what CHALK-126 exists to prevent.
+
+   It also cannot carry the wording that makes a decision safe. "End the current
+   outing and log 3 pitches?" with OK and Cancel is a shrug: the question does
+   not say what happens and the buttons do not say what they do. Every one of
+   these now follows the three outs tray from CHALK-111: a title, one line of
+   consequence in plain language, and two buttons where the primary carries the
+   VERB.
+
+   confirm() is synchronous and a sheet is not, so each of these takes a
+   callback rather than returning a boolean. That is the whole reason the call
+   sites below are restructured rather than swapped in place. */
+function ask(o,onYes){
+  el('sheetInner').innerHTML=
+    '<h2 class="sheetTitle">'+esc(o.title)+'</h2>'+
+    '<div class="muted">'+esc(o.body)+'</div>'+
+    '<button class="btn '+(o.danger?'danger':'primary')+' wide" style="margin-top:14px" id="askYes">'+
+      esc(o.yes)+'</button>'+
+    '<button class="btn wide" style="margin-top:8px" data-close="1">'+esc(o.no||'Cancel')+'</button>';
+  openSheet();
+  el('askYes').addEventListener('click',function(){ closeSheet(); onYes(); });
+}
+/* the alert replacement: one button, and it still says something */
+function say(title,body){
+  el('sheetInner').innerHTML=
+    '<h2 class="sheetTitle">'+esc(title)+'</h2>'+
+    '<div class="muted">'+esc(body)+'</div>'+
+    '<button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
+  openSheet();
+}
+/* Reuses the row component the catcher picker already uses, so the pitcher in
+   Add a past outing is the app's own list rather than a styled <select>. */
+function pickPlayer(title,current,onPick){
+  if(!S.roster.length){ goSettings('team'); return; }
+  var h='<h2 class="sheetTitle">'+esc(title)+'</h2>';
+  h+=S.roster.map(function(p){
+    return '<button class="crow" data-pickp="'+p.id+'">'+
+      '<span class="cn">'+esc((p.number?p.number+'  ':'')+p.name)+'</span>'+
+      '<span class="ctick">'+(p.id===current?'\u2713':'')+'</span></button>';
+  }).join('');
+  h+='<button class="btn wide" style="margin-top:12px" data-close="1">Cancel</button>';
+  el('sheetInner').innerHTML=h;
+  openSheet();
+  el('sheetInner').addEventListener('click',function handler(e){
+    var b=e.target.closest('[data-pickp]'); if(!b) return;
+    el('sheetInner').removeEventListener('click',handler);
+    onPick(b.dataset.pickp);
+  });
+}
+
 function closeSheet(){
   el('sheet').classList.remove('on');
   el('sheetPanel').style.transform='';
@@ -1876,8 +1929,14 @@ el('sheet').addEventListener('click',function(e){
   if(b){
     var id=b.dataset.pick;
     if(S.game&&S.game.count>0&&S.game.pitcherId!==id){
-      if(!confirm('End the current outing and log '+S.game.count+' pitches?')) return;
-      commitOuting();
+      var off=activePlayer(), n=S.game.count, to=S.roster.filter(function(r){return r.id===id;})[0];
+      ask({title:(off?off.name:'This pitcher')+' has '+n+' on the counter',
+           body:'Switching to '+(to?to.name:'another pitcher')+' logs those '+n+
+                ' first, and takes '+(off?off.name.split(' ')[0]:'him')+' off the mound for this game.',
+           yes:'Log '+n+' and switch'},function(){
+        commitOuting(); setPitcher(id); save(); renderCount();
+      });
+      return;
     }
     setPitcher(id);
     save(); closeSheet(); renderCount();
@@ -2296,7 +2355,10 @@ function sendUnsent(){
   /* CHALK-125. A roster write that failed is not lost data, the roster is still
      here, but the sheet copy is stale and this is the retry. */
   var roster=!rosterIsSaved();
-  if(!pending.length&&!dels.length&&!roster){ alert('Everything is already in the sheet.'); return; }
+  if(!pending.length&&!dels.length&&!roster){
+    say('Nothing to send','Every outing, delete and the roster are already in the sheet.');
+    return;
+  }
   pending.forEach(pushToSheet);
   dels.forEach(pushDelete);
   if(roster) pushRoster();
@@ -2304,7 +2366,8 @@ function sendUnsent(){
   if(pending.length) parts.push(pending.length+' outing'+(pending.length>1?'s':''));
   if(dels.length) parts.push(dels.length+' delete'+(dels.length>1?'s':''));
   if(roster) parts.push('the roster');
-  alert('Sending '+parts.join(' and ')+'.');
+  say('Sending','On its way: '+parts.join(' and ')+
+      '. The Log says "In the sheet" against each row once it lands.');
 }
 
 /* Counts, not a wall of rows. The only names shown are players who would be
@@ -2422,8 +2485,14 @@ function openRestore(){
 
 function endOuting(){
   if(!S.game||S.game.count<=0){ openPicker(); return; }
-  var p=activePlayer();
-  if(!confirm('Log '+S.game.count+' pitches for '+(p?p.name:'this pitcher')+'?')) return;
+  var p=activePlayer(), n=S.game.count;
+  ask({title:'End '+(p?p.name.split(' ')[0]+"'s":'this')+' outing',
+       body:n+' pitches go to the log'+(syncUrl()?' and to the sheet':'')+
+            '. '+(p?p.name.split(' ')[0]:'He')+' is off the mound for the rest of this game.',
+       yes:'Log '+n+' pitches'},function(){ endOutingNow(); });
+  return;
+}
+function endOutingNow(){
   commitOuting();
   /* the outing ends; the game, the inning and the catcher do not */
   setPitcher(null);
@@ -2573,8 +2642,17 @@ function renderLog(){
 }
 el('s-log').addEventListener('click',function(e){
   var b=e.target.closest('[data-del]'); if(!b) return;
-  if(!confirm('Delete this outing?')) return;
   var id=b.dataset.del;
+  var o=S.outings.filter(function(x){return x.id===id;})[0];
+  var who=o?(S.roster.filter(function(r){return r.id===o.pitcherId;})[0]||{}).name:null;
+  ask({title:'Delete this outing',
+       body:(o?o.pitches+' pitches on '+pretty(o.date):'This outing')+
+            (who?' come off '+who.split(' ')[0]+"'s record":'')+
+            (syncUrl()?', here and in the sheet':'')+
+            '. His rest days are worked out again without them.',
+       yes:'Delete', danger:true},function(){ deleteOutingNow(id); });
+});
+function deleteOutingNow(id){
   S.outings=S.outings.filter(function(o){return o.id!==id;});
   save();
   /* sent for every delete, not only synced ones. An outing marked unsent may
@@ -2583,7 +2661,7 @@ el('s-log').addEventListener('click',function(e){
      without touching anything. */
   pushDelete(id);
   renderAll();
-});
+}
 /* CHALK-117 setup. Paste the feed, refresh, and say plainly what the app now
    believes, including when it believes nothing. A blank line here would look
    exactly like a schedule that was loaded and empty. */
@@ -2688,22 +2766,54 @@ el('catcherBtn').addEventListener('click',openCatcherPicker);
 
 el('sendUnsentBtn').addEventListener('click',sendUnsent);
 el('restoreBtn').addEventListener('click',openRestore);
-el('addManual').addEventListener('click',function(){
+/* CHALK-130. The <select> is gone: the pitcher is chosen from the app's own row
+   list, the same component the catcher picker uses. The state lives out here so
+   the sheet can be re-rendered after the picker without losing what he typed.
+
+   The DATE stays native. A custom date picker is a lot of surface for a control
+   used a few times a season, the native one is a wheel rather than a white
+   dialog so it does not carry the dark mode problem, and iOS renders it inline.
+   Flagged rather than forced: Dan decides. */
+var manual={pid:null,date:null,pitches:0};
+function openManualAdd(){
   if(!S.roster.length){ goSettings('team'); return; }
-  var h='<h2>Add a past outing</h2>'+
-    '<label class="muted">Pitcher</label><select id="mPl">'+S.roster.map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+'</option>';}).join('')+'</select>'+
-    '<label class="muted" style="display:block;margin-top:12px">Date</label><input type="date" id="mDt" value="'+todayStr()+'">'+
-    '<label class="muted" style="display:block;margin-top:12px">Pitches</label><input type="number" id="mPc" inputmode="numeric" value="0">'+
-    '<button class="btn primary wide" style="margin-top:16px" id="mSave">Save outing</button>'+
+  if(!manual.pid) manual.pid=S.roster[0].id;
+  if(!manual.date) manual.date=todayStr();
+  var p=S.roster.filter(function(r){return r.id===manual.pid;})[0];
+  el('sheetInner').innerHTML=
+    '<h2 class="sheetTitle">Add a past outing</h2>'+
+    '<div class="muted" style="margin:-6px 0 12px">For a game the app missed. It counts '+
+    'towards rest exactly like any other outing.</div>'+
+    '<label class="flabel">Pitcher</label>'+
+    '<button class="crow" id="mPl" style="margin-top:0">'+
+      '<span class="cn">'+esc(p?((p.number?p.number+'  ':'')+p.name):'Choose')+'</span>'+
+      '<span class="ctick">\u203a</span></button>'+
+    '<label class="flabel" style="margin-top:14px">Date</label>'+
+    '<input type="date" id="mDt" value="'+esc(manual.date)+'">'+
+    '<label class="flabel" style="margin-top:14px">Pitches</label>'+
+    '<input type="number" id="mPc" inputmode="numeric" value="'+(manual.pitches||'')+'" placeholder="0">'+
+    '<p class="muted" id="mErr" style="margin-top:8px;color:var(--status-stop)"></p>'+
+    '<button class="btn primary wide" style="margin-top:10px" id="mSave">Save outing</button>'+
     '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
-  el('sheetInner').innerHTML=h;
   openSheet();
+  el('mPl').addEventListener('click',function(){
+    manual.date=el('mDt').value||manual.date;
+    manual.pitches=parseInt(el('mPc').value,10)||0;
+    pickPlayer('Whose outing?',manual.pid,function(id){ manual.pid=id; openManualAdd(); });
+  });
   el('mSave').addEventListener('click',function(){
     var pc=parseInt(el('mPc').value,10)||0;
-    if(pc<=0){ alert('Enter a pitch count above zero.'); return; }
-    S.outings.push({id:'o'+Date.now(),pitcherId:el('mPl').value,date:el('mDt').value||todayStr(),pitches:pc});
+    /* inline, next to the field, rather than a dialog on top of a dialog */
+    if(pc<=0){ el('mErr').textContent='Enter a pitch count above zero.'; el('mPc').focus(); return; }
+    S.outings.push({id:'o'+Date.now(),pitcherId:manual.pid,
+                    date:el('mDt').value||todayStr(),pitches:pc,synced:false});
+    manual={pid:null,date:null,pitches:0};
     save(); closeSheet(); renderAll();
   });
+}
+el('addManual').addEventListener('click',function(){
+  manual={pid:null,date:null,pitches:0};
+  openManualAdd();
 });
 
 /* ---------------- roster ---------------- */
@@ -2819,8 +2929,18 @@ function renderImportPreview(){
 }
 
 function commitImport(rows,replace){
-  if(replace&&!confirm('Replace the whole roster with these '+rows.length+
-     ' players? The outing log is kept.')) return;
+  if(replace){
+    ask({title:'Replace the roster',
+         body:'The '+S.roster.length+' player'+(S.roster.length===1?'':'s')+
+              ' here are removed and these '+rows.length+' take their place. '+
+              'Every logged outing is kept, including theirs.',
+         yes:'Replace with '+rows.length, danger:true},
+        function(){ commitImportNow(rows,true); });
+    return;
+  }
+  commitImportNow(rows,false);
+}
+function commitImportNow(rows,replace){
   if(replace) S.roster=[];
   var stamp=Date.now();
   rows.forEach(function(r,i){
@@ -2862,10 +2982,16 @@ el('newName').addEventListener('keydown',function(e){ if(e.key==='Enter'){e.prev
 el('rosterList').addEventListener('click',function(e){
   if(e.target.closest('[data-goimport]')){ goSettings('team'); el('importText').focus(); return; }
   var b=e.target.closest('[data-rm]'); if(!b) return;
-  if(!confirm('Remove this player? Their logged outings stay in the log.')) return;
-  S.roster=S.roster.filter(function(p){return p.id!==b.dataset.rm;});
-  if(S.game&&S.game.pitcherId===b.dataset.rm) S.game.pitcherId=null;
-  save(); pushRoster(); renderAll();
+  var id=b.dataset.rm;
+  var who=(S.roster.filter(function(p){return p.id===id;})[0]||{}).name||'This player';
+  ask({title:'Remove '+who,
+       body:'He comes off the roster'+(syncUrl()?', here and in the sheet':'')+
+            '. Everything he has already pitched stays in the log.',
+       yes:'Remove', danger:true},function(){
+    S.roster=S.roster.filter(function(p){return p.id!==id;});
+    if(S.game&&S.game.pitcherId===id) S.game.pitcherId=null;
+    save(); pushRoster(); renderAll();
+  });
 });
 el('oppPlus').addEventListener('click',function(){S.opp++;save();renderRoster();});
 el('oppMinus').addEventListener('click',function(){S.opp=Math.max(0,S.opp-1);save();renderRoster();});
@@ -2882,12 +3008,23 @@ function endGame(){
   save();
 }
 el('endGameBtn').addEventListener('click',function(){
-  if(!confirm('End this game? Anything on the counter is logged, then the pitch count and the innings caught are cleared. The outing log is kept.')) return;
-  endGame();
-  renderAll(); go('count');
+  var live=(S.game&&S.game.count)||0;
+  ask({title:'End this game',
+       body:(live?live+' pitches on the counter go to the log first. ':'')+
+            'The pitch count and the innings caught clear for the next game, '+
+            'and the outing log is kept.',
+       yes:'End game'},function(){
+    endGame(); renderAll(); go('count');
+  });
 });
 el('wipeBtn').addEventListener('click',function(){
-  if(!confirm('Delete the roster and every logged outing? This cannot be undone.')) return;
+  ask({title:'Clear everything',
+       body:'The roster and all '+S.outings.length+' logged outing'+
+            (S.outings.length===1?'':'s')+' are deleted from this device. '+
+            'This cannot be undone'+(syncUrl()?', and the deletes are sent to the sheet too':'')+'.',
+       yes:'Delete everything', danger:true},wipeNow);
+});
+function wipeNow(){
   /* every outing, not only the synced ones. One marked unsent may have landed
      with only the response lost, and a wipe that left those rows behind would
      recreate the divergence this exists to prevent. The queue lives under its
@@ -2896,7 +3033,7 @@ el('wipeBtn').addEventListener('click',function(){
   /* nothing reseeds a roster any more, so a wipe stays wiped. Settings >
      Roster is the way back. */
   S={roster:[],outings:[],game:null,opp:0}; save(); renderAll();
-});
+}
 
 /* ---------------- nav ---------------- */
 function go(name){
@@ -3014,9 +3151,12 @@ renderAll();
 /* keep the screen awake while counting */
 if('wakeLock' in navigator){
   var wl=null;
-  var ask=function(){ navigator.wakeLock.request('screen').then(function(l){wl=l;}).catch(function(){}); };
-  ask();
-  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') ask(); });
+  /* NOT called ask(). var hoists to script scope, so this used to overwrite
+     CHALK-130's ask() dialog at load and every confirmation silently became a
+     wake lock request that returned a promise and opened nothing. */
+  var keepAwake=function(){ navigator.wakeLock.request('screen').then(function(l){wl=l;}).catch(function(){}); };
+  keepAwake();
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') keepAwake(); });
 }
 </script>
 

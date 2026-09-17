@@ -116,6 +116,20 @@ table.
 - Off the mound means done pitching for that game, even after one pitch.
 - A pitcher who reaches 75 may stay in the game anywhere except catcher.
 
+**Three outs is the only thing that ends a half inning.** From the source:
+"Each half inning shall be complete when three outs are recorded. THERE ARE NO
+RUN LIMITS PER INNING IN MAJOR", capitalised in the original. So the batting
+screen is correct as built and **there is no run cap to add**. Recorded here
+because a run limit is a plausible-sounding thing to add later, and it would be
+wrong.
+
+Two rules the app deliberately does not model, both fine:
+
+- A ten run rule after four completed innings, three and a half if the home
+  team leads.
+- The home team is the official pitch count recorder, and both managers and the
+  umpire sign the scorebook. The app is Dan's record, not the official one.
+
 Catcher innings belong to one calendar day. `caughtToday()` returns 0 unless
 `S.game.date` is today, and `carriedCatchers()` is the only way a tally moves
 into a new `S.game`. The rollover runs at load **and** on `visibilitychange`,
