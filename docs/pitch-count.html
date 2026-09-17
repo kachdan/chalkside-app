@@ -74,6 +74,24 @@
 
   /* the rest bands. A coach reads these to decide whether to leave a kid in,
      so they are tokens in their own right and not tints of the status set. */
+  /* CHALK-129. Two states per band: track when it has not been reached, fill
+     when it has or is being filled. The two amber bands are separated by
+     SKIPPING a ramp step rather than taking the next one, amber/100 against
+     amber/300 for the tracks and amber/500 against amber/700 for the fills.
+     That is deliberate and it is against the usual advice not to skip
+     increments. Adjacent steps land near dE 13; skipping one gives 35.1 on the
+     tracks and 26.8 on the fills, against the 4.0 that shipped before. Do not
+     "correct" these to consecutive steps, the skip IS the fix. */
+  --band-rest-0-track:#C1E3C2;
+  --band-rest-0-fill:#3F9A4D;
+  --band-rest-1-track:#FFECD4;
+  --band-rest-1-fill:#BD7F00;
+  --band-rest-2-track:#E6B36C;
+  --band-rest-2-fill:#7B5100;
+  --band-rest-3-track:#FFCFC9;
+  --band-rest-3-fill:#DC0C1D;
+
+  /* superseded by the eight above, removed in a follow-up commit */
   --band-rest-0:#CDE4D1;
   --band-rest-0-progress:#3F9A4D;
   --band-rest-1:#F6E4C2;
@@ -122,11 +140,20 @@
   --status-stop:#E8434F;
   --status-info:#5B93FF;
 
-  /* The four bands, checked rather than assumed. Worst separation is 1 day
-     against 2 days at deltaE 4.2; the same pair in Light is 4.0, so Dark is
-     marginally better than what ships today. They do not collapse into four
-     browns. That the pair is tight in LIGHT is a separate problem and has its
-     own ticket. */
+  /* CHALK-129. The ticket that "the pair is tight in Light" became.
+     rest-1/fill, rest-2/fill and rest-3/fill are the SAME value in both modes
+     on purpose: they are mid-ramp steps that already carry enough contrast
+     against a white page and a near-black one, so they do not need to move. */
+  --band-rest-0-track:#004E16;
+  --band-rest-0-fill:#67B16F;
+  --band-rest-1-track:#422900;
+  --band-rest-1-fill:#BD7F00;
+  --band-rest-2-track:#5D3C00;
+  --band-rest-2-fill:#7B5100;
+  --band-rest-3-track:#8B000C;
+  --band-rest-3-fill:#DC0C1D;
+
+  /* superseded by the eight above, removed in a follow-up commit */
   --band-rest-0:#223A27;
   --band-rest-0-progress:#4FAE5D;
   --band-rest-1:#3E3520;
@@ -261,21 +288,23 @@ input,select{
   flex:1;position:relative;overflow:hidden;
   border-radius:4px;background:transparent;
 }
-/* The tier colour is carried on the segment itself, so the pale track and the
-   fill are the same colour without four more tokens for the pale versions. */
-.ribbon .seg[data-d="0"]{color:var(--status-safe);}
-.ribbon .seg[data-d="1"]{color:var(--status-caution);}
-.ribbon .seg[data-d="2"]{color:var(--status-caution-strong);}
-.ribbon .seg[data-d="3"]{color:var(--status-stop);}
-/* unfilled track, the segment's own colour at 20% */
+/* CHALK-129. Each band carries its own track and its own fill, rather than one
+   tier colour used at 20% and at full. The old way is what made 1 day and 2
+   days indistinguishable: both derived from an amber, so both tracks were the
+   same wash. These are eight separate values off the ramp. */
+.ribbon .seg[data-d="0"]{--track:var(--band-rest-0-track);--fill:var(--band-rest-0-fill);}
+.ribbon .seg[data-d="1"]{--track:var(--band-rest-1-track);--fill:var(--band-rest-1-fill);}
+.ribbon .seg[data-d="2"]{--track:var(--band-rest-2-track);--fill:var(--band-rest-2-fill);}
+.ribbon .seg[data-d="3"]{--track:var(--band-rest-3-track);--fill:var(--band-rest-3-fill);}
+/* the track: the band has not been reached */
 .ribbon .seg::before{
   content:'';position:absolute;top:0;right:0;bottom:0;left:0;
-  background:currentColor;opacity:.2;
+  background:var(--track);
 }
-/* the fill, same colour at full strength, painted over the track */
+/* the fill: reached, or being filled right now, painted over its own track */
 .ribbon .seg i{
   display:block;height:100%;width:0%;
-  background:currentColor;position:relative;
+  background:var(--fill);position:relative;
   transition:width .18s ease;
 }
 .ribbon .ticks{
