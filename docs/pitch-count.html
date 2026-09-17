@@ -2770,10 +2770,15 @@ el('restoreBtn').addEventListener('click',openRestore);
    list, the same component the catcher picker uses. The state lives out here so
    the sheet can be re-rendered after the picker without losing what he typed.
 
-   The DATE stays native. A custom date picker is a lot of surface for a control
-   used a few times a season, the native one is a wheel rather than a white
-   dialog so it does not carry the dark mode problem, and iOS renders it inline.
-   Flagged rather than forced: Dan decides. */
+   The DATE stays native. DECIDED by Dan on 17 Sep, not left open: a custom
+   picker is too much surface for a control used a few times a season, and the
+   native one is an inline wheel rather than a white dialog, so it never carried
+   the problem CHALK-130 was about. Do not build one.
+
+   The better fix is not a picker at all. CHALK-117 already put the schedule in
+   the sheet, so this can offer the recent GAME dates as a row list: fewer taps
+   than a wheel, and it removes the control rather than restyling it. Its own
+   ticket, not started. */
 var manual={pid:null,date:null,pitches:0};
 function openManualAdd(){
   if(!S.roster.length){ goSettings('team'); return; }

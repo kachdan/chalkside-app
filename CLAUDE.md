@@ -290,6 +290,37 @@ The last one is the reason for the rule. It would have shipped green.
 Intent files live in https://github.com/kachdan/chalkside-intent (private), one
 per ticket, written before the work starts.
 
+### A check you have not seen fail is not a check
+
+**Every new check is committed alongside proof that it fails on a known-bad
+input.** Write the check, break the file on purpose, watch the check go red,
+fix the file, watch it go green. Only then does it count. A check that has only
+ever passed is an assertion about the world, not a test of it.
+
+This is the standing rule because five verifications have now gone green while
+looking at the wrong thing:
+
+| what was checked | what it was actually looking at |
+| --- | --- |
+| the app on port 8000 | an `http.server` from an older session, serving the archive |
+| the VERSION guard | the script directly, while the docs prescribe a symlink |
+| a computed style | the previous frame, and later the previous screen's classes |
+| `node --check` on the app | block 0, a 743 byte theme script, not the 89KB app |
+| duplicate global names | only `^function name`, so `var x = function(){}` was invisible |
+
+The last one let `var ask = function(){}` in the wake lock block overwrite
+CHALK-130's `ask()` dialog at load. Every confirmation in the app silently
+became a wake lock request that opened nothing.
+
+`tools/check-names.sh` went through two wrong versions. The second tried to
+track brace depth across 89KB, drifted, and **passed a file with the bug
+deliberately put back**. It is only trustworthy now because it fails on that
+file and passes the fixed one.
+
+Three name collisions have shipped this way: `ordinal`, `batBall`, `ask`. Run
+`tools/check-names.sh` and `tools/check-syntax.sh` before any commit that adds
+a top level name.
+
 ### Name what you measured
 
 Verified against something real includes knowing **which** real thing. Start
