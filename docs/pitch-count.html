@@ -499,6 +499,74 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
   border-bottom:1px solid var(--border-rule);   /* full bleed: outside .pad */
 }
 
+/* ---------- CHALK-111, the batting screen ----------
+   Two tiers on purpose. Ball and Strike are CONTROLS: taller, raised fill, the
+   stronger border, a shadow. Out and Inning are information that happens to be
+   tappable: shorter, page fill, the lighter rule, no shadow. The hierarchy is
+   the instruction, so nobody has to be told which one they hit all game.
+   Measurements are the Figma frame: 175 wide, 152 and 120 tall, 12px gutters. */
+.bhead{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-12);}
+.bhead h1{margin:0;}
+.bhead .btn{flex:0 0 auto;min-height:var(--size-tap-sm);padding:10px 14px;font-size:14px;}
+.bhead .btn[disabled]{opacity:.4;}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-12);}
+.tile{
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  border-radius:var(--radius-xl);font:inherit;text-align:center;
+  padding:var(--space-24) var(--space-12) var(--space-20);
+}
+.tile .tlabel{display:block;}
+.tile .tval{
+  display:block;font-variant-numeric:tabular-nums;line-height:1;
+  color:var(--text-primary);
+}
+/* tier one: the two he hits all game */
+.tile.ctl{
+  min-height:152px;
+  background:var(--surface-raised);
+  border:1.5px solid var(--border-strong);
+  box-shadow:0 1px 3px rgba(22,24,26,.10);
+}
+.tile.ctl .tlabel{font-size:16px;font-weight:600;color:var(--text-primary);}
+.tile.ctl .tval{font-size:64px;margin-top:var(--space-6);}
+/* tier two: information that happens to be tappable */
+.tile.info{
+  min-height:120px;
+  background:var(--surface-page);
+  border:1.5px solid var(--border-rule);
+  padding-top:var(--space-16);
+}
+.tile.info .tlabel{font-size:14px;font-weight:500;color:var(--text-secondary);}
+.tile.info .tval{font-size:48px;margin-top:var(--space-6);}
+.tile:active{background:var(--surface-tap);}
+.tile .afford{
+  display:block;margin-top:var(--space-8);
+  font-size:12px;color:var(--text-secondary);
+}
+
+/* The pips carry their own severity, so the SEQUENCE is the signal: two strikes
+   is amber then dark amber and reads as one thing from across a dugout, without
+   parsing a digit. Ball is green because for his own batter a ball is good. */
+.pips{display:flex;gap:6px;margin-top:var(--space-12);}
+.pips i{display:block;width:9px;height:9px;border-radius:50%;background:var(--border-rule);}
+.tile.info .pips i{width:8px;height:8px;}
+.pips i.f0{background:var(--status-safe);}
+.pips i.f1{background:var(--status-caution);}
+.pips i.f2{background:var(--status-caution-strong);}
+.pips i.f3{background:var(--status-stop);}
+
+/* CHALK-111. The tray offers, it does not move him. Everything behind drops so
+   Go to count is the only primary on screen. */
+#s-batting.trayopen .pad,
+#s-batting.trayopen .phead{opacity:.45;}
+/* demoted, not hidden: he can still see what the screen was */
+#s-batting.trayopen .btn.primary{
+  background:var(--surface-raised);
+  border:1.5px solid var(--border-rule);
+  color:var(--text-primary);
+}
+
 /* ---------- CHALK-127, Settings tabs ----------
    Measured off the Figma frame. The two easy things to get wrong are that the
    indicator is the width of the LABEL and not of the cell, and that the divider
@@ -751,6 +819,52 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
   <!-- ============ ROSTER ============ -->
 
   <!-- ============ SETTINGS ============ -->
+  <!-- ============ BATTING ============
+       CHALK-111. Every tile is a tap target, not a display. That is the whole
+       input model: you tap what you can SEE rather than reconstructing what you
+       missed. Two visual tiers do the teaching, so a first-time user taps once
+       and learns without being told. -->
+  <section class="screen" id="s-batting">
+    <header class="phead bhead">
+      <div>
+        <div class="eyebrow">We are batting</div>
+        <h1 id="batInningTitle">1st inning</h1>
+      </div>
+      <button class="btn" id="batUndo" disabled>Undo</button>
+    </header>
+
+    <div class="pad">
+      <div class="tiles">
+        <button class="tile ctl" data-bat="ball">
+          <span class="tlabel">Ball</span>
+          <span class="tval" id="batBall">0</span>
+          <span class="pips" id="pipsBall"></span>
+        </button>
+        <button class="tile ctl" data-bat="strike">
+          <span class="tlabel">Strike</span>
+          <span class="tval" id="batStrike">0</span>
+          <span class="pips" id="pipsStrike"></span>
+        </button>
+        <button class="tile info" data-bat="out">
+          <span class="tlabel">Out</span>
+          <span class="tval" id="batOut">0</span>
+          <span class="pips" id="pipsOut"></span>
+        </button>
+        <!-- a tile that looks tappable and is not is worse than no tile -->
+        <button class="tile info" data-bat="inning">
+          <span class="tlabel">Inning</span>
+          <span class="tval" id="batInning">1</span>
+          <span class="afford">Tap to correct</span>
+        </button>
+      </div>
+
+      <button class="btn wide" id="batFoul" style="margin-top:20px">Foul</button>
+      <button class="btn primary wide" id="batNew" style="margin-top:10px">New batter</button>
+      <p class="muted" style="margin-top:12px">Foul is for when you are watching.
+      New batter is for when you were not: tap it and the count starts fresh.</p>
+    </div>
+  </section>
+
   <!-- CHALK-127. Three bands: the header and the tab row are fixed, only the
        pane scrolls, the nav bar is fixed by its own rule. Settings is where
        every one-time setup step lives, so it is the first screen a new user
@@ -875,11 +989,12 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
     <button data-go="count" class="fab on" aria-label="Count">
       <svg viewBox="0 0 24 24"><path d="M2 12c5.5 0 10-4.5 10-10"/><circle cx="12" cy="12" r="10"/><path d="M22 12c-5.5 0-10 4.5-10 10"/><path d="m8 11.5-1.5-2"/><path d="m11.5 8-2-1.5"/><path d="m14.5 17.5-2-1.5"/><path d="m17.5 14.5-1.5-2"/></svg>
     </button>
-    <!-- CHALK-127. Roster moved into Settings and this is the slot it left.
-         Held open rather than closed up: without it the FAB is two cells left
-         of centre, which looks like a mistake, and CHALK-111 fills this exact
-         gap with Batting. Not focusable and not announced. -->
-    <div class="navgap" aria-hidden="true"></div>
+    <!-- CHALK-111 takes the slot CHALK-127 freed. bat-ball from @lucide/lab
+         v0.7.0, ISC, path copied from the package rather than redrawn: Lucide
+         core has no bat, and the Figma icon is a hand drawn stand in. -->
+    <button data-go="batting" aria-label="Batting">
+      <svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="4"/><path d="m4 8 10 10"/><path d="M20.8 15.2c1.9-3.4 1.4-7.7-1.4-10.6-3.5-3.5-9.1-3.5-12.5 0-4.7 4.7-5.1 6.9-1.4 11.1l-2.9 2.9c-.8.8-.8 2 0 2.8.8.8 2 .8 2.8 0l2.9-2.9c2.6 2.3 4.5 3 6.6 2.1"/></svg>
+      <span>Batting</span></button>
     <button data-go="settings" aria-label="Settings">
       <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       <span>Settings</span></button>
@@ -1300,6 +1415,139 @@ function setPitcher(id){
   assignInning(currentInning(),id||null,undefined);
 }
 
+/* ---------------- CHALK-111, batting ----------------
+   The tab switch IS the half inning flip. Tapping Batting means his team is up;
+   tapping the count screen means they are in the field. Nothing flips
+   underneath him, and there is no separate control to forget.
+
+   None of this touches a rule. Pitch counts, rest and the catcher rule are
+   computed exactly as before; this half of the app records no outing. */
+function bat(){
+  if(!S.game) S.game=freshGame(1);
+  if(!S.game.bat) S.game.bat={b:0,s:0,o:0};
+  return S.game.bat;
+}
+/* last action plus the state before it, so Undo can NAME its target. A bare
+   "Undo" makes him work out what he is undoing at the moment he is least able
+   to. */
+var lastBat=null;
+function rememberBat(what){
+  var c=bat();
+  lastBat={what:what,b:c.b,s:c.s,o:c.o,halfDone:!!S.game.halfDone};
+}
+function undoBat(){
+  if(!lastBat) return;
+  var c=bat();
+  c.b=lastBat.b; c.s=lastBat.s; c.o=lastBat.o;
+  S.game.halfDone=lastBat.halfDone;
+  lastBat=null;
+  closeSheet();
+  save(); renderBatting();
+}
+
+function addBall(){
+  var c=bat(); rememberBat('ball');
+  c.b=Math.min(4,c.b+1);
+  if(c.b>=4){ c.b=0; c.s=0; }        /* walk, the count clears */
+  save(); renderBatting();
+}
+function addStrike(){
+  var c=bat(); rememberBat('strike');
+  c.s=Math.min(3,c.s+1);
+  if(c.s>=3){ c.s=0; c.b=0; addOut(true); }   /* struck out */
+  save(); renderBatting();
+}
+/* A foul with two strikes is not a third strike. Without this, tapping strike
+   on a foul invents an out, and an invented out ends a half that has not. */
+function addFoul(){
+  var c=bat();
+  if(c.s>=2) return;                 /* deliberately nothing */
+  rememberBat('foul');
+  c.s=c.s+1;
+  save(); renderBatting();
+}
+/* The safety net. He looks up, sees a different kid at the plate, taps once and
+   carries on without working out what he missed. The out is untouched. */
+function newBatter(){
+  var c=bat(); rememberBat('new batter');
+  c.b=0; c.s=0;
+  save(); renderBatting();
+}
+function addOut(fromStrike){
+  var c=bat();
+  if(!fromStrike) rememberBat('out');
+  c.o=Math.min(3,c.o+1);
+  if(c.o>=3){
+    c.o=0; c.b=0; c.s=0;
+    S.game.halfDone=true;            /* the half is over; the flip is his tap */
+    save(); renderBatting();
+    offerHalfEnd();
+    return;
+  }
+  save(); renderBatting();
+}
+
+/* Offers, never moves. Being moved without asking is worse than one tap, and
+   the wording says what the tap will DO rather than asking a question. */
+function offerHalfEnd(){
+  var next=currentInning()+1;
+  el('sheetInner').innerHTML=
+    '<h2 class="sheetTitle">Three outs</h2>'+
+    '<div class="muted">Going back to the count means we are in the field for the '+
+    esc(inningLabel(next))+'.</div>'+
+    '<button class="btn primary wide" style="margin-top:14px" id="halfGo">Go to count</button>'+
+    '<button class="btn wide" style="margin-top:8px" data-close="1">Stay here</button>';
+  openSheet();
+  /* One primary action per screen, always. While the tray is up, New batter
+     drops to secondary so Go to count is the only primary on screen, and the
+     screen behind drops to 45% so it reads as backdrop rather than as choices. */
+  el('s-batting').classList.add('trayopen');
+  el('halfGo').addEventListener('click',function(){ closeSheet(); go('count'); });
+}
+
+/* The Inning tile is a tap target like the rest, because a tile that looks
+   tappable and is not is worse than no tile at all. Correcting it is the
+   recoverable-from-observation move: he can see what inning it is from the
+   scoreboard or by asking, so he sets it rather than reconstructing it. */
+function openInningCorrect(){
+  var cur=currentInning();
+  var h='<h2 class="sheetTitle">Which inning?</h2>'+
+        '<div class="muted" style="margin:-6px 0 10px">Set it to what the field says.</div>';
+  for(var i=1;i<=9;i++){
+    h+='<button class="crow" data-inn="'+i+'">'+
+       '<span class="cn">'+inningLabel(i)+'</span>'+
+       '<span class="ctick">'+(i===cur?'\u2713':'')+'</span></button>';
+  }
+  h+='<button class="btn wide" style="margin-top:12px" data-close="1">Cancel</button>';
+  el('sheetInner').innerHTML=h;
+  openSheet();
+}
+function pipRow(host,n,max,kind){
+  var h='';
+  for(var i=0;i<max;i++){
+    var cls='';
+    if(i<n) cls=(kind==='ball')?' class="f0"':' class="f'+(i+1)+'"';
+    h+='<i'+cls+'></i>';
+  }
+  host.innerHTML=h;
+}
+function renderBatting(){
+  if(!el('batBall')) return;
+  var c=bat();
+  el('batBall').textContent=c.b;
+  el('batStrike').textContent=c.s;
+  el('batOut').textContent=c.o;
+  el('batInning').textContent=currentInning();
+  el('batInningTitle').textContent=inningLabel(currentInning())+' inning';
+  pipRow(el('pipsBall'),c.b,4,'ball');
+  pipRow(el('pipsStrike'),c.s,3,'strike');
+  pipRow(el('pipsOut'),c.o,3,'out');
+  var u=el('batUndo');
+  u.disabled=!lastBat;
+  u.textContent=lastBat?('Undo '+lastBat.what):'Undo';
+}
+
+
 /* ---------------- count screen ---------------- */
 var el=function(id){return document.getElementById(id);};
 
@@ -1539,6 +1787,9 @@ function openSheet(){
 function closeSheet(){
   el('sheet').classList.remove('on');
   el('sheetPanel').style.transform='';
+  /* CHALK-111. Whatever route the tray closes by, including the scrim and the
+     drag, the screen behind comes back up and New batter is primary again. */
+  var b=el('s-batting'); if(b) b.classList.remove('trayopen');
 }
 
 var CHEV='<span class="chev" aria-hidden="true">'+
@@ -2398,6 +2649,28 @@ el('s-settings').addEventListener('click',function(e){
   setTheme(b.dataset.themeSet);
 });
 
+el('sheet').addEventListener('click',function(e){
+  var b=e.target.closest('[data-inn]'); if(!b) return;
+  var n=+b.dataset.inn;
+  if(!S.game) S.game=freshGame(1);
+  /* set the inning without inventing assignments for the ones skipped over */
+  S.game.inning=n;
+  assignInning(n,undefined,undefined);
+  save(); closeSheet(); renderAll();
+});
+
+el('s-batting').addEventListener('click',function(e){
+  var t=e.target.closest('[data-bat]'); if(!t) return;
+  var k=t.dataset.bat;
+  if(k==='ball') addBall();
+  else if(k==='strike') addStrike();
+  else if(k==='out') addOut(false);
+  else if(k==='inning') openInningCorrect();
+});
+el('batFoul').addEventListener('click',addFoul);
+el('batNew').addEventListener('click',newBatter);
+el('batUndo').addEventListener('click',undoBat);
+
 el('inningBtn').addEventListener('click',function(){
   advanceInning();
   renderAll();
@@ -2618,7 +2891,14 @@ el('wipeBtn').addEventListener('click',function(){
 
 /* ---------------- nav ---------------- */
 function go(name){
-  ['count','team','log','settings'].forEach(function(n){
+  /* CHALK-111. The tab switch IS the half inning flip. A batting half that
+     reached three outs advances the inning when he actually goes back to the
+     field, so Stay here and Go to count end up in the same place. */
+  if(name==='count'&&S.game&&S.game.halfDone){
+    S.game.halfDone=false;
+    advanceInning();
+  }
+  ['count','team','log','batting','settings'].forEach(function(n){
     el('s-'+n).classList.toggle('on',n===name);
   });
   Array.prototype.forEach.call(document.querySelectorAll('nav button'),function(b){
@@ -2679,7 +2959,7 @@ function renderHeaders(){
   }
 }
 
-function renderAll(){ renderCount(); renderTeam(); renderLog(); renderRoster(); renderHeaders(); }
+function renderAll(){ renderCount(); renderTeam(); renderLog(); renderRoster(); renderBatting(); renderHeaders(); }
 
 /* New day clears the in-game state and keeps the log. An outing still on the
    counter is committed first rather than thrown away. */
