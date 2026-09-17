@@ -189,9 +189,20 @@ button{font-family:inherit;font-size:16px;color:inherit;cursor:pointer;}
 .btn.primary:active{background:var(--brand-primary-strong);}
 .btn.wide{width:100%;}
 :focus-visible{outline:3px solid var(--brand-primary);outline-offset:2px;}
+/* CHALK-136. A field and a secondary button were drawn with the same two
+   tokens, surface/control and border/rule, so an input read as a disabled
+   button and a button read as an input. Two swaps fix both at once:
+
+     fill    surface/control  ->  surface/page
+     stroke  border/rule      ->  border/strong
+
+   Applied to EVERY field, not only the Sync tab: sheet URL, schedule feed, team
+   name, the roster textarea, and the pitches and date inputs in Add a past
+   outing. Secondary buttons are deliberately untouched, because the point is
+   that the two stop matching. */
 textarea{
   font-family:inherit;font-size:16px;padding:11px 12px;line-height:1.4;
-  border:1.5px solid var(--border-rule);border-radius:10px;background:var(--surface-raised);
+  border:1.5px solid var(--border-strong);border-radius:10px;background:var(--surface-page);
   color:var(--text-primary);width:100%;-webkit-user-select:text;user-select:text;
   resize:vertical;min-height:132px;
 }
@@ -215,17 +226,13 @@ textarea{
 
 input,select{
   font-family:inherit;font-size:16px;padding:11px 12px;
-  border:1.5px solid var(--border-rule);border-radius:10px;background:var(--surface-raised);
+  border:1.5px solid var(--border-strong);border-radius:10px;background:var(--surface-page);
   color:var(--text-primary);width:100%;-webkit-user-select:text;user-select:text;
 }
 .muted{color:var(--text-secondary);font-size:13.5px;}
 .row{display:flex;gap:10px;align-items:center;}
 
 /* ---------- count screen ---------- */
-.who{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:10px;padding:10px 16px 8px;
-}
 .who .name{
   font-family:inherit;font-size:26px;font-weight:500;
   line-height:1.1;letter-spacing:.01em;
@@ -426,25 +433,42 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 }
 .prow .psub{display:block;font-size:13.5px;color:var(--text-secondary);margin-top:2px;}
 .prow>.tag,.prow>.stepper,.prow>.btn{flex:0 0 auto;}
-/* CHALK-110 state line. One row, three parts: an advance, a statement, and the
-   only correction. 44px targets on both buttons, used one handed in the sun. */
+/* CHALK-137. The strip is itself the catcher target, 48 tall, contents CENTRED
+   rather than spread, with the inning tag nested inside it as a second target.
+   Nothing here looks like a button, which is the point: the Change buttons were
+   competing with the state they described and overstating themselves. */
 .stateline{
-  display:flex;align-items:center;gap:10px;
-  padding:0 0 10px;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;min-height:48px;padding:8px 16px;
+  background:var(--surface-page);border:0;
+  font:inherit;text-align:left;cursor:pointer;
 }
+.stateline:active{background:var(--surface-tap);}
+/* radius 4, NOT a pill: a pill reads as a chip you dismiss */
 .stateline .inn{
   display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;
-  min-height:44px;padding:0 12px;border:0;border-radius:10px;
-  background:var(--surface-raised);color:var(--brand-primary);
-  font:inherit;font-size:15px;font-weight:600;cursor:pointer;
+  min-height:32px;padding:3px 9px;border-radius:4px;
+  background:var(--brand-tint);color:var(--text-accent);
+  font-size:16px;font-weight:600;cursor:pointer;
 }
-.stateline .inn:active{background:var(--border-rule);}
+.stateline .inn:active{background:var(--brand-primary);color:var(--text-on-accent);}
 .stateline .belief{
-  flex:1 1 auto;min-width:0;
-  font-size:14px;color:var(--text-secondary);
+  flex:0 1 auto;min-width:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  /* P and C are two steps larger than the names, deliberately: the role is what
+     you scan for, the name is what you confirm */
+  font-size:18px;font-weight:400;color:var(--text-secondary);
 }
-.stateline .belief b{color:var(--text-primary);font-weight:600;}
+.stateline .belief b{font-size:16px;font-weight:600;color:var(--text-primary);}
+
+/* the whole who row is the pitcher target */
+.who{
+  display:flex;align-items:center;gap:10px;
+  width:100%;padding:10px 16px 8px;
+  background:var(--surface-page);border:0;
+  font:inherit;text-align:left;cursor:pointer;
+}
+.who:active{background:var(--surface-tap);}
 
 /* the catcher picker rows: the cost sits on the row it applies to, at the
    moment of the decision, not in a toast afterward */
@@ -502,9 +526,20 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 
 /* ---------- sheet ---------- */
 /* ---------- page header ---------- */
+/* CHALK-133. ONE mechanism for dividers: an explicit .rule element, placed
+   where a divider is wanted. No component carries its own border-bottom.
+
+   The app had both, and Settings is where it showed: .phead drew a border and
+   the tab row drew its own edge-to-edge divider, so two hairlines sat a few
+   pixels apart. That was not a Settings bug to patch, it was two mechanisms for
+   one thing. With the border gone, a header followed by tabs simply has no
+   divider between them, because nobody put one there.
+
+   nav's border-top and .prevrow's border-top stay. They separate a fixed bar
+   from scrolling content and one list row from the next; neither is a divider
+   anybody would think to place by hand. */
 .phead{
   flex:0 0 auto;padding:16px 16px 12px;
-  border-bottom:1px solid var(--border-rule);   /* full bleed: outside .pad */
 }
 
 /* ---------- CHALK-111, the batting screen ----------
@@ -806,19 +841,25 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
       <!-- CHALK-110. The app's belief, always on screen. It states rather than
            asks, so being wrong is visible instead of silent, and Change is
            always there rather than appearing only when something looks off. -->
-      <div class="stateline">
-        <button class="inn" id="inningBtn" aria-label="Start the next inning">
-          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M12 5l7 12H5z" fill="currentColor"/></svg>
-          <span id="inningNum">1st</span>
-        </button>
-        <div class="belief" id="beliefText"></div>
-        <button class="swap" id="catcherBtn">Change</button>
-      </div>
+      <!-- CHALK-137. No Change buttons. The ROW is the target: the whole strip
+           opens the catcher picker, the inning tag nested inside it advances the
+           inning, and the whole who row below opens the pitcher picker.
 
-      <div class="who">
-        <div class="name" id="activeName">No pitcher</div>
-        <button class="swap" id="swapBtn">Change</button>
-      </div>
+           Three of these have no visual affordance and that is deliberate: a
+           first-time user taps once and learns, and the label already says what
+           the thing is. Do not add affordances here unasked. -->
+      <button class="stateline" id="catcherBtn" aria-label="Change the catcher">
+        <span class="inn" id="inningBtn" role="button" tabindex="0"
+              aria-label="Start the next inning">
+          <svg viewBox="0 0 24 24" width="8" height="8" aria-hidden="true"><path d="M12 5l7 12H5z" fill="currentColor"/></svg>
+          <span id="inningNum">1st</span>
+        </span>
+        <span class="belief" id="beliefText"></span>
+      </button>
+
+      <button class="who" id="swapBtn" aria-label="Change the pitcher">
+        <span class="name" id="activeName">No pitcher</span>
+      </button>
       <hr class="rule">
 
       <button class="tapzone" id="tapzone">
@@ -852,6 +893,7 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
       <h1 id="teamTitle">Team</h1>
       <div class="subline" id="teamSub"></div>
     </header>
+    <hr class="rule">
     <div class="pad">
       <!-- The stepper is the only thing on this tab you actually operate, and
            it is tapped every inning, so it goes first. The list below is a
@@ -887,6 +929,7 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
       </div>
       <div class="subline" id="logSub"></div>
     </header>
+    <hr class="rule">
     <div class="pad">
       <div id="logList"></div>
       <button class="btn wide" id="addManual" style="margin-top:10px">Add a past outing</button>
@@ -906,6 +949,7 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
       <div class="eyebrow">We are batting</div>
       <h1 id="batInningTitle">1st inning</h1>
     </header>
+    <hr class="rule">
 
     <div class="pad">
       <div class="tiles">
@@ -961,6 +1005,8 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
         <div class="segmented" id="appearance" role="group" aria-label="Appearance"></div>
       </div>
       <div class="subline" id="settingsSub"></div>
+      <!-- CHALK-133. No rule here on purpose. The tab row below draws its own
+           edge-to-edge divider, and this is where the doubled hairline was. -->
     </header>
 
     <div class="stabs" id="settingsTabs" role="tablist">
@@ -2028,10 +2074,12 @@ function renderStateLine(){
   var a=thisInning()||{};
   var pn=shortName(a.p||S.game&&S.game.pitcherId);
   var cn=shortName(a.c);
+  /* "Dan P \u2022 Ray C". First name only, no surname: the strip is a glance,
+     not a record, and a surname pushes the catcher off a narrow phone. */
   el('beliefText').innerHTML=
-    (pn?('<b>'+esc(pn)+'</b> P'):'<span>no pitcher</span>')+
-    '  \u00b7  '+
-    (cn?('<b>'+esc(cn)+'</b> C'):'<span>catcher not set</span>');
+    (pn?('<b>'+esc(pn)+'</b> P'):'no pitcher')+
+    ' \u2022 '+
+    (cn?('<b>'+esc(cn)+'</b> C'):'catcher not set');
 }
 
 function renderCount(){
@@ -2094,10 +2142,66 @@ function bump(n){
   if(n>0) S.game.marks.push(Date.now());
   else S.game.marks.pop();
   save(); renderCount();
-  var cuts=[30,45,60,75];
-  if(n>0&&cuts.indexOf(S.game.count)>-1) buzz(S.game.count>=75?[80,60,80,60,120]:[60,50,60]);
+  /* CHALK-138. Every pitch buzzes, not only the thresholds. The thresholds are
+     already carried visually, by the count turning orange at 60 and red at 75,
+     on a screen he is looking at. 75 keeps the heavier pattern. */
+  if(n>0) buzz(S.game.count===MAX?[80,60,80,60,120]:20);
 }
-function buzz(p){ if(navigator.vibrate) try{navigator.vibrate(p);}catch(e){} }
+
+/* CHALK-138. iOS Safari has no navigator.vibrate, so every buzz in this file
+   has been silent on the only phone that matters. The one haptic a web page can
+   reach on iOS is a side effect of a native control: toggling an
+   <input type="checkbox" switch> plays the system tick, from Safari 17.4.
+
+   It is an accident of that control, not an API, so it is feature detected and
+   not sniffed, and the whole path degrades to silence if a future iOS takes it
+   away. Nothing here throws and nothing here draws.
+
+   The element is deliberately NOT display:none, visibility:hidden or
+   appearance:none. All three stop the control being natively rendered, which is
+   the thing producing the tick. It is moved off screen instead, where no
+   viewport can reach it, with pointer events off, out of the tab order and
+   hidden from assistive tech. */
+var hapticEl=null, hapticReady=null;
+function hapticSwitch(){
+  if(hapticReady!==null) return hapticEl;
+  hapticReady=false;
+  try{
+    var probe=document.createElement('input');
+    if(!('switch' in probe)) return null;          /* not Safari 17.4+ */
+    probe.type='checkbox';
+    probe.setAttribute('switch','');
+    probe.tabIndex=-1;
+    probe.setAttribute('aria-hidden','true');
+    probe.style.cssText='position:fixed;top:0;left:-9999px;width:32px;height:20px;'+
+                        'opacity:0;pointer-events:none;';
+    document.body.appendChild(probe);
+    hapticEl=probe; hapticReady=true;
+  }catch(e){ hapticEl=null; }
+  return hapticEl;
+}
+
+/* One entry point, two implementations. p is a navigator.vibrate pattern; the
+   switch has no pattern, so a pattern becomes one tick per burst in it. A tick
+   scheduled after the gesture may be refused by iOS, in which case the coach
+   feels the first one and nothing is broken. */
+function buzz(p){
+  var sw=hapticSwitch();
+  if(sw){
+    var bursts=(typeof p==='number')?[p]:(p||[]);
+    var at=0;
+    for(var i=0;i<bursts.length;i+=2){
+      (function(delay){
+        if(!delay){ hapticTick(sw); return; }
+        setTimeout(function(){ hapticTick(sw); },delay);
+      })(at);
+      at+=(+bursts[i]||0)+(+bursts[i+1]||0);
+    }
+    return;
+  }
+  if(navigator.vibrate) try{navigator.vibrate(p);}catch(e){}
+}
+function hapticTick(sw){ try{ sw.click(); }catch(e){} }
 
 el('tapzone').addEventListener('click',function(){bump(1);});
 el('minusBtn').addEventListener('click',function(){bump(-1);});
@@ -3127,9 +3231,25 @@ el('batFoul').addEventListener('click',addFoul);
 el('batNew').addEventListener('click',newBatter);
 el('batUndo').addEventListener('click',undoBat);
 
-el('inningBtn').addEventListener('click',function(){
+/* CHALK-137. The inning tag sits INSIDE the strip, and the strip is the catcher
+   target. Without stopPropagation a tap on the tag advances the inning AND
+   opens the catcher picker, which is worse than either alone: he meant to move
+   to the next inning and now has a sheet over the screen, and the inning has
+   already moved behind it.
+
+   stopPropagation on the inner target, not a coordinate test, because the tag
+   moves with the text beside it. */
+el('inningBtn').addEventListener('click',function(e){
+  e.stopPropagation();
   advanceInning();
   renderAll();
+});
+/* the tag is a span so it can nest inside the button; keyboard has to be wired
+   by hand because a span is not a button */
+el('inningBtn').addEventListener('keydown',function(e){
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  e.preventDefault(); e.stopPropagation();
+  advanceInning(); renderAll();
 });
 el('catcherBtn').addEventListener('click',openCatcherPicker);
 
