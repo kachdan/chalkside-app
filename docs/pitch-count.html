@@ -639,17 +639,40 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
    a settings control on a stationary screen, not something tapped one handed
    during a game; the surrounding row gives it 44px of vertical room. */
 .headline{display:flex;align-items:center;justify-content:space-between;gap:var(--space-12);}
+.headline .btn{flex:0 0 auto;min-height:var(--size-tap-sm);padding:10px 14px;font-size:14px;}
+/* the share date pills: same component as the appearance switch, laid out to
+   wrap because an opponent name is longer than "Light" */
+.sharedates{display:flex;flex-wrap:wrap;gap:var(--space-8);margin-bottom:var(--space-12);}
+.sharedates .seg{
+  border:1px solid var(--border-rule);background:var(--surface-raised);
+  min-height:var(--size-tap-sm);
+}
+.sharedates .seg.on{border-color:var(--text-accent);}
+.sharedates .seg .muted{font-size:13px;}
+
+/* the preview is the exact text that gets copied, so it is shown as text */
+.sharePrev{
+  white-space:pre-wrap;font-size:13px;line-height:1.5;
+  background:var(--surface-raised);border:1px solid var(--border-rule);
+  border-radius:var(--radius-md);padding:var(--space-12);
+  max-height:38vh;overflow:auto;
+  font-variant-numeric:tabular-nums;
+}
 .headline h1{margin:0;}
 .segmented{
   display:inline-flex;flex:0 0 auto;padding:var(--space-2);gap:var(--space-2);
   background:var(--surface-raised);border-radius:var(--radius-md);
 }
-.segmented .seg{
+/* Not .segmented .seg. CHALK-109 reuses .seg for the share date pills, which
+   live outside .segmented, and a rule scoped to the parent left them as the
+   browser's default button face: white boxes on a black sheet. Exactly the
+   .who .swap mistake from CHALK-126, made again with a different class. */
+.seg{
   min-height:30px;padding:0 var(--space-12);border:0;border-radius:var(--radius-sm);
   background:transparent;color:var(--text-secondary);
   font:inherit;font-size:14px;font-weight:500;cursor:pointer;
 }
-.segmented .seg.on{
+.seg.on{
   background:var(--surface-page);color:var(--text-accent);font-weight:600;
   box-shadow:0 1px 2px rgba(0,0,0,.10);
 }
@@ -787,7 +810,13 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
   <section class="screen" id="s-team">
     <header class="phead">
       <div class="eyebrow" id="teamEyebrow"></div>
-      <h1 id="teamTitle">Team</h1>
+      <div class="headline">
+        <h1 id="teamTitle">Team</h1>
+        <!-- CHALK-109. On the heading line so it is reachable without
+             scrolling: the plan gets settled within twenty minutes of the last
+             out and nobody hunts for a button in a group text. -->
+        <button class="btn" id="shareBtn">Share</button>
+      </div>
       <div class="subline" id="teamSub"></div>
     </header>
     <div class="pad">
@@ -1134,6 +1163,121 @@ function dayTotal(pid){
   var n=pitchesToday(pid);
   if(S.game&&S.game.date===todayStr()&&S.game.pitcherId===pid) n+=S.game.count;
   return n;
+}
+/* ---------------- CHALK-109, share availability ----------------
+   After a game the staff settle the next game's plan over group text inside
+   twenty minutes of the last out. The data is on one phone across two screens
+   and neither is enough: Team has innings caught and who can pitch but no rest
+   dates, Log has counts and clear dates but no innings caught. So today it is
+   two screenshots, or one screenshot plus retyping.
+
+   Eligibility here is RECOMPUTED for the target date. It is never read from
+   the sheet and never copied off the Team screen, which is the same rule the
+   restore path follows: a stale eligible column cannot poison a plan. */
+
+/* Availability worked out for an arbitrary date rather than today.
+
+   For TODAY the answer is pitchEligibility, the single decision point, so the
+   message cannot disagree with the screen. For a FUTURE game only the rest
+   math applies: the mound rule and the catcher rule are same-game rules, and a
+   future game is a different game, so a kid who caught four innings tonight is
+   not blocked from pitching on Thursday. Getting that wrong would be a message
+   telling the staff a boy is unavailable when he is not. */
+function availabilityOn(pid,target){
+  if(target===todayStr()){
+    var e=pitchEligibility(pid);
+    return {ok:e.ok,why:e.why};
+  }
+  var d=lastPitchingDay(pid);
+  if(!d) return {ok:true,why:'no outings logged'};
+  var clear=eligibleDate(d.date,d.pitches);
+  var need=restDays(d.pitches);
+  var sub=d.pitches+' on '+pretty(d.date)+', needs '+need+' day'+(need===1?'':'s');
+  if(clear<=target) return {ok:true,why:sub+', clear '+pretty(clear)};
+  return {ok:false,why:sub+', not clear until '+pretty(clear)};
+}
+
+/* The opponent out of the schedule title. "vs Ridge Runners" and "@ Waxhaw"
+   both appear in the feed, and the separator is worth keeping because playing
+   at someone reads differently from hosting them. */
+function opponentOn(date){
+  var hit=null;
+  schedule().forEach(function(e){
+    if(e.date===date&&e.kind==='game'&&!hit) hit=e;
+  });
+  if(!hit||!hit.title) return '';
+  var m=String(hit.title).match(/(?:^|\s)(vs\.?|@|at)\s+(.+)$/i);
+  if(!m) return String(hit.title).trim();
+  var sep=/^@|at$/i.test(m[1])?'at':'vs';
+  return sep+' '+m[2].trim();
+}
+
+/* Every future game the schedule is sure about, soonest first. Ambiguous days
+   are left out for the same reason CHALK-117 stays quiet about them: a
+   placeholder that turns out to be a practice would put a wrong date at the
+   top of a message the staff act on. */
+function futureGames(){
+  var t=todayStr(), out=[];
+  schedule().forEach(function(e){
+    if(e.kind==='game'&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)&&e.date>=t) out.push(e.date);
+  });
+  out.sort();
+  var seen={},u=[];
+  out.forEach(function(d){ if(!seen[d]){seen[d]=1;u.push(d);} });
+  return u;
+}
+
+function shareText(target){
+  var opp=opponentOn(target);
+  var head=(teamName()||'Team')+' \u2014 '+pretty(target)+(opp?(' '+opp):'');
+  var can=[],cant=[];
+  S.roster.forEach(function(p){
+    var a=availabilityOn(p.id,target);
+    var num=p.number?p.number+' ':'';
+    var line='  '+num+p.name+' \u2014 '+a.why;
+    /* innings caught only bear on eligibility for the game being played now,
+       so they only appear when the target IS that game */
+    if(target===todayStr()){
+      var c=caughtThisGame(p.id);
+      if(c>0) line+=', '+c+' inning'+(c===1?'':'s')+' caught';
+    }
+    (a.ok?can:cant).push(line);
+  });
+  var out=head+'\n';
+  out+='\nCAN PITCH\n'+(can.length?can.join('\n'):'  nobody');
+  out+='\n\nCANNOT\n'+(cant.length?cant.join('\n'):'  nobody');
+  return out;
+}
+
+var shareTarget=null;
+function openShare(){
+  if(!S.roster.length){ goSettings('team'); return; }
+  var games=futureGames();
+  if(!shareTarget) shareTarget=games.length?games[0]:todayStr();
+  var opts=games.slice(0,6);
+  if(opts.indexOf(todayStr())<0) opts.unshift(todayStr());
+  var h='<h2 class="sheetTitle">Share availability</h2>'+
+        '<div class="muted" style="margin:-6px 0 10px">'+
+        (games.length?'Defaults to the next scheduled game.'
+                     :'No schedule set, so this is a date. Add the feed under Settings > Sync to name the game.')+
+        '</div>';
+  h+='<div class="sharedates">'+opts.map(function(d){
+      var opp=opponentOn(d);
+      return '<button class="seg'+(d===shareTarget?' on':'')+'" data-sharedate="'+d+'">'+
+             esc(pretty(d))+(opp?' <span class="muted">'+esc(opp)+'</span>':'')+'</button>';
+    }).join('')+'</div>';
+  h+='<div class="sharePrev" id="sharePrev">'+esc(shareText(shareTarget))+'</div>'+
+     '<button class="btn primary wide" style="margin-top:12px" id="shareCopy">Copy</button>'+
+     '<button class="btn wide" style="margin-top:8px" data-close="1">Close</button>';
+  el('sheetInner').innerHTML=h;
+  openSheet();
+  el('shareCopy').addEventListener('click',function(){
+    var txt=shareText(shareTarget), btn=el('shareCopy');
+    function copyLabel(ok){ btn.textContent=ok?'Copied':'Could not copy, select the text above'; }
+    try{
+      navigator.clipboard.writeText(txt).then(function(){copyLabel(true);},function(){copyLabel(false);});
+    }catch(e){ copyLabel(false); }
+  });
 }
 /* ---------------- CHALK-117, the schedule ----------------
    The app answers "clear Sep 18". What a coach needs, standing on a field, is
@@ -2745,6 +2889,13 @@ el('sheet').addEventListener('click',function(e){
   assignInning(n,undefined,undefined);
   save(); closeSheet(); renderAll();
 });
+
+el('sheet').addEventListener('click',function(e){
+  var b=e.target.closest('[data-sharedate]'); if(!b) return;
+  shareTarget=b.dataset.sharedate;
+  openShare();
+});
+el('shareBtn').addEventListener('click',openShare);
 
 el('s-batting').addEventListener('click',function(e){
   var t=e.target.closest('[data-bat]'); if(!t) return;
