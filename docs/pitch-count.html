@@ -313,6 +313,9 @@ nav{
   box-shadow:0 -6px 18px rgba(22,24,26,.07);
   padding:8px 8px calc(8px + env(safe-area-inset-bottom));
 }
+/* CHALK-127. The slot Roster vacated, holding the FAB centred until CHALK-111
+   puts Batting in it. */
+.navgap{flex:1;}
 nav button{
   flex:1;background:none;border:0;border-radius:14px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
@@ -478,6 +481,64 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
   flex:0 0 auto;padding:16px 16px 12px;
   border-bottom:1px solid var(--border-rule);   /* full bleed: outside .pad */
 }
+
+/* ---------- CHALK-127, Settings tabs ----------
+   Measured off the Figma frame. The two easy things to get wrong are that the
+   indicator is the width of the LABEL and not of the cell, and that the divider
+   runs edge to edge rather than stopping at the 16px content margin.
+
+   The cell has no horizontal padding, so cell width IS label width and the
+   indicator cannot drift. The tap target is widened separately below. */
+#s-settings.on{overflow:hidden;}          /* the pane scrolls, not the screen */
+.stabs{
+  flex:0 0 auto;position:relative;
+  display:flex;gap:var(--space-24);
+  padding:0 var(--space-16);
+  background:var(--surface-page);
+}
+.stabs::after{                            /* edge to edge, under the indicator */
+  content:'';position:absolute;left:0;right:0;bottom:0;
+  height:var(--stroke-hairline);background:var(--border-rule);z-index:0;
+}
+.stab{
+  position:relative;z-index:1;
+  background:none;border:0;padding:0 0 calc(var(--space-8) + var(--stroke-indicator));
+  min-height:var(--size-tap-md);
+  font-size:18px;font-weight:400;line-height:1.3;
+  color:var(--text-secondary);
+  display:flex;align-items:center;
+}
+/* the 24px gap is exactly 12px of slack each side, so the touch target fills it
+   without two tabs ever overlapping */
+.stab::before{
+  content:'';position:absolute;top:0;bottom:0;left:-12px;right:-12px;
+}
+.stab.on{font-weight:600;color:var(--text-accent);}
+/* absent on inactive tabs, not transparent */
+.stab.on::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;
+  height:var(--stroke-indicator);border-radius:var(--stroke-indicator);
+  background:var(--text-accent);
+}
+
+.spanes{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.spane{display:none;}
+.spane.on{display:block;}
+
+/* CHALK-127. A field is a label, the value, and the state said out loud. */
+.field .flabel{
+  display:block;font-size:16px;font-weight:600;color:var(--text-primary);
+  margin-bottom:var(--space-8);
+}
+.field .fhelp{margin:var(--space-8) 0 0;}
+
+/* CHALK-124 folds in here: Clear everything must not look like Send unsent. */
+.btn.danger{
+  color:var(--status-stop);
+  border-color:color-mix(in srgb,var(--status-stop) 45%,var(--border-rule));
+  background:var(--surface-page);
+}
+.btn.danger:active{background:color-mix(in srgb,var(--status-stop) 12%,var(--surface-page));}
 .phead .eyebrow{
   font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
   color:var(--text-secondary);
@@ -671,22 +732,12 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
   </section>
 
   <!-- ============ ROSTER ============ -->
-  <section class="screen" id="s-roster">
-    <header class="phead">
-      <div class="eyebrow">Squad</div>
-      <h1>Roster</h1>
-      <div class="subline" id="rosterSub"></div>
-    </header>
-    <div class="pad">
-      <div class="row" style="margin-bottom:14px">
-        <input id="newName" placeholder="11 Firstname Lastname" autocomplete="off">
-        <button class="btn primary" id="addBtn" style="flex:0 0 auto">Add</button>
-      </div>
-      <div id="rosterList"></div>
-    </div>
-  </section>
 
   <!-- ============ SETTINGS ============ -->
+  <!-- CHALK-127. Three bands: the header and the tab row are fixed, only the
+       pane scrolls, the nav bar is fixed by its own rule. Settings is where
+       every one-time setup step lives, so it is the first screen a new user
+       meets, and it is the screen Dan himself got lost on. -->
   <section class="screen" id="s-settings">
     <header class="phead">
       <div class="eyebrow">This device</div>
@@ -699,52 +750,98 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
       </div>
       <div class="subline" id="settingsSub"></div>
     </header>
-    <div class="pad">
-      <h2>Team name</h2>
-      <p class="muted" style="margin:-6px 0 10px">Shown at the top of the Team tab. Leave it
-      blank and it just says Team. Stored on this device only, never in the app's source.</p>
-      <input id="teamNameFld" placeholder="Your team name" autocomplete="off" maxlength="40">
 
-      <h2 style="margin-top:24px">Roster</h2>
-      <p class="muted" style="margin:-6px 0 10px">One player per line. A number and a name, in
-      either order, separated by a space, a comma or a dash. A line with no number is fine.</p>
-      <textarea id="importText" rows="6" spellcheck="false" autocapitalize="words"
-        placeholder="11 Firstname Lastname&#10;Firstname Lastname 11&#10;11, Firstname Lastname&#10;11 - Firstname Lastname"></textarea>
-      <button class="btn wide" id="importPreviewBtn" style="margin-top:8px">Preview import</button>
-      <div id="importPreview" class="prev"></div>
-      <p class="muted" id="rosterSheetSub" style="margin-top:10px"></p>
+    <div class="stabs" id="settingsTabs" role="tablist">
+      <button class="stab on" data-stab="team" role="tab">Team</button>
+      <button class="stab" data-stab="sync" role="tab">Sync</button>
+      <button class="stab" data-stab="game" role="tab">Game</button>
+      <button class="stab" data-stab="app" role="tab">App</button>
+    </div>
 
-      <h2 style="margin-top:24px">Google Sheet</h2>
-      <button class="btn wide" id="syncSetupBtn">Sheet setup</button>
-      <button class="btn wide" id="sendUnsentBtn" style="margin-top:8px">Send unsent</button>
-      <button class="btn wide" id="restoreBtn" style="margin-top:8px">Restore from sheet</button>
+    <div class="spanes" id="settingsPanes">
 
-      <h2 style="margin-top:24px">Schedule</h2>
-      <button class="btn wide" id="schedBtn">Schedule setup</button>
-      <p class="muted" id="schedSub" style="margin-top:10px"></p>
+      <div class="pad spane on" data-pane="team">
+        <h2>Team name</h2>
+        <p class="muted" style="margin:-6px 0 10px">Shown at the top of the Team tab. Leave it
+        blank and it just says Team. Stored on this device only, never in the app's source.</p>
+        <input id="teamNameFld" placeholder="Your team name" autocomplete="off" maxlength="40">
 
-      <h2 style="margin-top:24px">Opponent count</h2>
-      <div class="card">
-        <div class="row" style="justify-content:space-between">
-          <div>
-            <div class="pname" id="oppNum">0</div>
-            <div class="muted">Their pitcher</div>
-          </div>
-          <div class="stepper">
-            <button id="oppMinus" aria-label="Subtract one">&minus;</button>
-            <button id="oppPlus" aria-label="Add one">+</button>
-            <button id="oppReset" style="width:auto;padding:0 12px;font-size:14px;font-family:inherit">Reset</button>
-          </div>
+        <h2 style="margin-top:24px">Add a player</h2>
+        <div class="row" style="margin-bottom:8px">
+          <input id="newName" placeholder="11 Firstname Lastname" autocomplete="off">
+          <button class="btn" id="addBtn" style="flex:0 0 auto">Add</button>
         </div>
+
+        <h2 style="margin-top:24px">Paste a roster</h2>
+        <p class="muted" style="margin:-6px 0 10px">One player per line. A number and a name, in
+        either order, separated by a space, a comma or a dash. A line with no number is fine.</p>
+        <textarea id="importText" rows="6" spellcheck="false" autocapitalize="words"
+          placeholder="11 Firstname Lastname&#10;Firstname Lastname 11&#10;11, Firstname Lastname&#10;11 - Firstname Lastname"></textarea>
+        <button class="btn primary wide" id="importPreviewBtn" style="margin-top:8px">Preview import</button>
+        <div id="importPreview" class="prev"></div>
+        <p class="muted" id="rosterSheetSub" style="margin-top:10px"></p>
+
+        <h2 style="margin-top:24px">Roster</h2>
+        <div id="rosterList"></div>
       </div>
 
-      <h2 style="margin-top:24px">Game</h2>
-      <button class="btn wide" id="endGameBtn">End game</button>
-      <p class="muted" style="margin-top:10px">Logs whatever is on the counter, then clears the pitch count and the innings caught for the next game. The outing log is kept.</p>
+      <!-- CHALK-127. No drill-down. Sheet and Schedule are a label, the current
+           value in an input, and a helper line stating the state. Dan missed
+           Sheet setup entirely when it was a grey rectangle that opened a
+           sheet; the value being visible is the point. -->
+      <div class="pad spane" data-pane="sync">
+        <div class="field">
+          <label class="flabel" for="syncFld">Google Sheet</label>
+          <input class="fld" id="syncFld" autocomplete="off" spellcheck="false"
+                 placeholder="https://script.google.com/macros/s/.../exec">
+          <p class="muted fhelp" id="syncHelp"></p>
+        </div>
 
-      <h2 style="margin-top:24px">Data</h2>
-      <button class="btn wide" id="wipeBtn">Clear everything</button>
-      <p class="muted" style="margin-top:10px">Everything is stored on this device only. Nothing is sent anywhere.</p>
+        <div class="field" style="margin-top:20px">
+          <label class="flabel" for="icsFld">Schedule feed</label>
+          <input class="fld" id="icsFld" autocomplete="off" spellcheck="false"
+                 placeholder="https://.../schedule.ics">
+          <p class="muted fhelp" id="schedSub"></p>
+        </div>
+
+        <button class="btn primary wide" id="restoreBtn" style="margin-top:24px">Restore from sheet</button>
+        <button class="btn wide" id="sendUnsentBtn" style="margin-top:8px">Send unsent</button>
+      </div>
+
+      <div class="pad spane" data-pane="game">
+        <h2>Opponent count</h2>
+        <div class="card">
+          <div class="row" style="justify-content:space-between">
+            <div>
+              <div class="pname" id="oppNum">0</div>
+              <div class="muted">Their pitcher</div>
+            </div>
+            <div class="stepper">
+              <button id="oppMinus" aria-label="Subtract one">&minus;</button>
+              <button id="oppPlus" aria-label="Add one">+</button>
+              <button id="oppReset" style="width:auto;padding:0 12px;font-size:14px;font-family:inherit">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <h2 style="margin-top:24px">Game</h2>
+        <button class="btn primary wide" id="endGameBtn">End game</button>
+        <p class="muted" style="margin-top:10px">Logs whatever is on the counter, then clears the pitch count and the innings caught for the next game. The outing log is kept.</p>
+      </div>
+
+      <div class="pad spane" data-pane="app">
+        <h2>Appearance</h2>
+        <p class="muted" style="margin:-6px 0 0">Light or Dark, at the top of this screen. Dark
+        keeps the count off a bright screen the other bench can read from their dugout.</p>
+
+        <h2 style="margin-top:24px">Data</h2>
+        <p class="muted" style="margin:-6px 0 10px">Everything is stored on this device only.
+        Nothing is sent anywhere except the Google Sheet you connect.</p>
+        <button class="btn danger wide" id="wipeBtn">Clear everything</button>
+        <p class="muted" style="margin-top:10px">Deletes the roster and every logged outing on
+        this device. This cannot be undone.</p>
+      </div>
+
     </div>
   </section>
 
@@ -761,9 +858,11 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
     <button data-go="count" class="fab on" aria-label="Count">
       <svg viewBox="0 0 24 24"><path d="M2 12c5.5 0 10-4.5 10-10"/><circle cx="12" cy="12" r="10"/><path d="M22 12c-5.5 0-10 4.5-10 10"/><path d="m8 11.5-1.5-2"/><path d="m11.5 8-2-1.5"/><path d="m14.5 17.5-2-1.5"/><path d="m17.5 14.5-1.5-2"/></svg>
     </button>
-    <button data-go="roster" aria-label="Roster">
-      <svg viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-      <span>Roster</span></button>
+    <!-- CHALK-127. Roster moved into Settings and this is the slot it left.
+         Held open rather than closed up: without it the FAB is two cells left
+         of centre, which looks like a mistake, and CHALK-111 fills this exact
+         gap with Batting. Not focusable and not announced. -->
+    <div class="navgap" aria-hidden="true"></div>
     <button data-go="settings" aria-label="Settings">
       <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       <span>Settings</span></button>
@@ -1433,7 +1532,7 @@ var CHEV='<span class="chev" aria-hidden="true">'+
    Resting label as plain dimmed rows that are not controls at all. The Team
    tab is the same players as information, so it gets none of this. */
 function openPicker(){
-  if(!S.roster.length){ go('roster'); return; }
+  if(!S.roster.length){ goSettings('team'); return; }
   var ready=[], resting=[];
   S.roster.forEach(function(p){
     var a=pitchEligibility(p.id);
@@ -1914,7 +2013,7 @@ function markSynced(id,ok){
 
 function sendUnsent(){
   var url=syncUrl();
-  if(!url){ openSyncSetup(); return; }
+  if(!url){ goSettings('sync'); el('syncFld').focus(); return; }
   var pending=S.outings.filter(function(o){return !o.synced;});
   var dels=pendingDeletes();
   /* CHALK-125. A roster write that failed is not lost data, the roster is still
@@ -1941,7 +2040,7 @@ function openRestore(){
       '<button class="btn primary wide" style="margin-top:14px" id="restoreToSetup">Open Sheet setup</button>'+
       '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
     openSheet();
-    el('restoreToSetup').addEventListener('click',openSyncSetup);
+    el('restoreToSetup').addEventListener('click',function(){ closeSheet(); goSettings('sync'); el('syncFld').focus(); });
     return;
   }
 
@@ -2044,24 +2143,6 @@ function openRestore(){
   });
 }
 
-function openSyncSetup(){
-  var h='<h2>Google Sheet</h2>'+
-    '<div class="muted" style="margin-bottom:10px">Paste your Apps Script web app URL, '+
-    'the one ending in /exec. Outings are written to a tab named Game Log. '+
-    'Leave it blank and nothing is sent anywhere, outings just stay on this device.</div>'+
-    '<input class="fld" id="syncFld" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(savedSyncUrl())+'">'+
-    '<div class="controls" style="padding:14px 0 0">'+
-      '<button class="btn" data-close="1">Cancel</button>'+
-      '<button class="btn primary" id="syncSave">Save</button>'+
-    '</div>';
-  el('sheetInner').innerHTML=h;
-  openSheet();
-  el('syncSave').addEventListener('click',function(){
-    setSyncUrl(el('syncFld').value);
-    closeSheet();
-    renderLog();
-  });
-}
 function endOuting(){
   if(!S.game||S.game.count<=0){ openPicker(); return; }
   var p=activePlayer();
@@ -2083,7 +2164,7 @@ function endOuting(){
    The one thing genuinely refused is a player who has reached 75, who may stay
    in the game anywhere except behind the plate. That is a rule, not a choice. */
 function openCatcherPicker(){
-  if(!S.roster.length){ go('roster'); return; }
+  if(!S.roster.length){ goSettings('team'); return; }
   var cur=(thisInning()||{}).c||null;
   var h='<h2 class="sheetTitle">Who is catching?</h2>'+
         '<div class="muted" style="margin:-6px 0 10px">'+inningLabel(currentInning())+' inning</div>';
@@ -2247,38 +2328,51 @@ function scheduleStatus(){
   return evs.length+' events loaded, no game ahead of today.';
 }
 
-function openScheduleSetup(){
-  var h='<h2>Schedule</h2>'+
-    '<div class="muted" style="margin-bottom:10px">Paste the GameChanger calendar link. '+
-    'It contains a private token, so treat it like a password: it stays on this device '+
-    'and is never in the app\u2019s source. Your Apps Script reads the feed and writes a '+
-    'tab named Schedule.</div>'+
-    '<input class="fld" id="icsFld" placeholder="https://.../schedule.ics" value="'+esc(savedIcsUrl())+'">'+
-    '<div class="muted" id="icsMsg" style="margin-top:10px">'+esc(scheduleStatus())+'</div>'+
-    '<div class="controls" style="padding:14px 0 0">'+
-      '<button class="btn" data-close="1">Close</button>'+
-      '<button class="btn primary" id="icsSave">Save and refresh</button>'+
-    '</div>';
-  el('sheetInner').innerHTML=h;
-  openSheet();
-  el('icsSave').addEventListener('click',function(){
-    setIcsUrl(el('icsFld').value);
-    var msg=el('icsMsg');
-    if(!syncUrl()){ msg.textContent='Set the sheet up first, under Google Sheet. The feed is read through it.'; return; }
-    if(!savedIcsUrl()){ msg.textContent='Schedule cleared. Availability reads as a date again.'; setSchedule([]); renderAll(); return; }
-    msg.textContent='Refreshing\u2026';
-    refreshSchedule().then(function(){
-      msg.textContent=scheduleStatus();
-      renderAll();
-    }).catch(function(e){
-      /* the message names what failed; the app keeps working without it */
-      var why=String(e&&e.message||e);
-      msg.textContent=why==='no-sheet'?'No sheet set up yet.':
-                      why==='no-feed'?'No feed link saved.':
-                      'Could not read the feed ('+why+'). Nothing changed, the app still works without a schedule.';
-    });
+/* CHALK-127. The selected tab survives leaving Settings and coming back within
+   the session. Deliberately not persisted to localStorage: which tab he was on
+   is a position, not a setting, and a coach reopening the app tomorrow should
+   land on Team rather than wherever he happened to stop. */
+var settingsTab='team';
+function showSettingsTab(name){
+  settingsTab=name||'team';
+  Array.prototype.forEach.call(document.querySelectorAll('.stab'),function(b){
+    var on=b.dataset.stab===settingsTab;
+    b.classList.toggle('on',on);
+    b.setAttribute('aria-selected',on?'true':'false');
   });
+  Array.prototype.forEach.call(document.querySelectorAll('.spane'),function(d){
+    d.classList.toggle('on',d.dataset.pane===settingsTab);
+  });
+  var panes=el('settingsPanes');
+  if(panes) panes.scrollTop=0;
 }
+function goSettings(tab){ go('settings'); showSettingsTab(tab||settingsTab); }
+el('settingsTabs').addEventListener('click',function(e){
+  var b=e.target.closest('[data-stab]'); if(!b) return;
+  showSettingsTab(b.dataset.stab);
+});
+
+/* CHALK-127. Both setup flows are inline now, so the value is visible instead
+   of hidden behind a grey rectangle that opened a sheet. The sheet URL saves as
+   he types; the feed needs a fetch, so it saves on blur and then refreshes. */
+el('syncFld').addEventListener('input',function(){
+  setSyncUrl(this.value);
+  renderHeaders(); renderLog();
+});
+el('icsFld').addEventListener('change',function(){
+  setIcsUrl(this.value);
+  var help=el('schedSub');
+  if(!savedIcsUrl()){ setSchedule([]); renderAll(); return; }
+  if(!syncUrl()){ help.textContent='Set the Google Sheet up first. The feed is read through it.'; return; }
+  help.textContent='Refreshing\u2026';
+  refreshSchedule().then(function(){ renderAll(); })
+    .catch(function(e){
+      var why=String(e&&e.message||e);
+      help.textContent=why==='no-sheet'?'No sheet set up yet.':
+                       why==='no-feed'?'No feed link saved.':
+                       'Could not read the feed ('+why+'). Nothing changed, the app still works without a schedule.';
+    });
+});
 
 /* CHALK-126. Instant, no reload: the attribute flips and every token
    re-resolves. Nothing is re-rendered and nothing is lost. */
@@ -2292,12 +2386,11 @@ el('inningBtn').addEventListener('click',function(){
   renderAll();
 });
 el('catcherBtn').addEventListener('click',openCatcherPicker);
-el('schedBtn').addEventListener('click',openScheduleSetup);
-el('syncSetupBtn').addEventListener('click',openSyncSetup);
+
 el('sendUnsentBtn').addEventListener('click',sendUnsent);
 el('restoreBtn').addEventListener('click',openRestore);
 el('addManual').addEventListener('click',function(){
-  if(!S.roster.length){ go('roster'); return; }
+  if(!S.roster.length){ goSettings('team'); return; }
   var h='<h2>Add a past outing</h2>'+
     '<label class="muted">Pitcher</label><select id="mPl">'+S.roster.map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+'</option>';}).join('')+'</select>'+
     '<label class="muted" style="display:block;margin-top:12px">Date</label><input type="date" id="mDt" value="'+todayStr()+'">'+
@@ -2468,7 +2561,7 @@ el('importPreviewBtn').addEventListener('click',renderImportPreview);
 el('addBtn').addEventListener('click',addPlayer);
 el('newName').addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();addPlayer();} });
 el('rosterList').addEventListener('click',function(e){
-  if(e.target.closest('[data-goimport]')){ go('settings'); el('importText').focus(); return; }
+  if(e.target.closest('[data-goimport]')){ goSettings('team'); el('importText').focus(); return; }
   var b=e.target.closest('[data-rm]'); if(!b) return;
   if(!confirm('Remove this player? Their logged outings stay in the log.')) return;
   S.roster=S.roster.filter(function(p){return p.id!==b.dataset.rm;});
@@ -2508,7 +2601,7 @@ el('wipeBtn').addEventListener('click',function(){
 
 /* ---------------- nav ---------------- */
 function go(name){
-  ['count','team','log','roster','settings'].forEach(function(n){
+  ['count','team','log','settings'].forEach(function(n){
     el('s-'+n).classList.toggle('on',n===name);
   });
   Array.prototype.forEach.call(document.querySelectorAll('nav button'),function(b){
@@ -2547,12 +2640,18 @@ function renderHeaders(){
     : S.outings.length+' outing'+(S.outings.length===1?'':'s')+
       (unsent?(', '+unsent+' not sent yet'):', all in the sheet');
 
-  el('rosterSub').textContent=S.roster.length
-    ? S.roster.length+' player'+(S.roster.length===1?'':'s')
-    : 'Nobody added yet';
-
   el('settingsSub').textContent=savedSyncUrl()?'Sheet connected':'No sheet connected';
   if(el('schedSub')) el('schedSub').textContent=scheduleStatus();
+  /* do not fight the coach while he is typing in either field */
+  var sf=el('syncFld');
+  if(sf&&document.activeElement!==sf) sf.value=savedSyncUrl();
+  var inf=el('icsFld');
+  if(inf&&document.activeElement!==inf) inf.value=savedIcsUrl();
+  if(el('syncHelp')){
+    el('syncHelp').textContent=savedSyncUrl()
+      ? 'Connected. Outings are written to the Game Log tab, and Restore reads it back.'
+      : 'Not connected. Outings stay on this device and nothing is sent anywhere.';
+  }
   renderAppearance();
   if(el('rosterSheetSub')){
     el('rosterSheetSub').textContent=
