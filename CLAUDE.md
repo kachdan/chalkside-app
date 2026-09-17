@@ -321,6 +321,39 @@ Three name collisions have shipped this way: `ordinal`, `batBall`, `ask`. Run
 `tools/check-names.sh` and `tools/check-syntax.sh` before any commit that adds
 a top level name.
 
+### Two kinds of check, and neither substitutes for the other
+
+**Static tools catch ordering and name faults. The browser catches resolution
+and paint faults.**
+
+`node --check` and `tools/check-names.sh` found a top level `el('sheet')` call
+before `var el` was assigned, and `var ask = function(){}` overwriting a
+function of the same name. Neither is visible on screen until something is
+tapped.
+
+The browser found the opposite kind every time: a class whose rule was scoped
+under a parent, reused where that parent is absent, painting the UA button face.
+`node --check` will never see that, because nothing is wrong with the code.
+
+Run both. A green static suite says nothing about what the page looks like, and
+a screenshot says nothing about whether a name is shadowed.
+
+### A class styled only as a descendant gets its own base rule
+
+Three times: `.who .swap` reused in the CHALK-110 state line, `.seg` reused for
+the CHALK-109 share date pills. A class whose only rule lives under a parent
+selector gets NO author background where that parent is absent, and the browser
+paints `rgb(239,239,239)`. Against Light's `#F4F5F7` that is invisible; on a
+dark sheet it is a white box.
+
+So: **when a descendant-scoped class is reused anywhere else, give it an
+unscoped base rule first.** `.swap` and `.seg` are both unscoped now.
+
+`tools/check-unstyled.js` catches it at runtime. It is deliberately not a static
+check: I wrote that version first and it flagged `.fab`, `.inn`, `.prow` and
+`.wide`, all four of which were correct code. Telling a real hit from those
+needs the ancestor chain, which for JS-built markup means running the page.
+
 ### Name what you measured
 
 Verified against something real includes knowing **which** real thing. Start
