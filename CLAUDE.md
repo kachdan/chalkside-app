@@ -360,6 +360,28 @@ it is unverified.** A deliverable that cannot be run here gets a note saying
 which calls were checked against the real file and which were not. Silence reads
 as verified.
 
+### Two correct features, added apart, on a path that runs both
+
+CHALK-142. Restore creates players from the Game Log, because an outing with no
+matching player contributes nothing to the rest calculation and under-reports a
+boy's count. Restore also creates players from the Roster tab. Both are right.
+They were written four days apart, both planned against the roster AS IT WAS,
+and nothing deduped between them, so on a new phone every player with an outing
+arrived twice.
+
+Neither ticket was wrong and no review of either would have caught it. The fault
+was in the interaction, and the interaction belonged to neither.
+
+So: **when adding a second producer to a path that already has one, name the
+other one out loud and say what happens when both run.** The question is not
+"is my feature correct", it is "what does this path do now that it does two
+things". Restore, the outing write, the delete queue and the rollover are all
+paths with more than one writer.
+
+The tell in the code was visible: `commitRestore` rebuilt its `known` map from
+the roster and then never consulted it. A map that is built and not read is
+usually a merge that was intended and not finished.
+
 ### Measure the hit area, not the box, and measure the HEIGHT
 
 Every tap target is at least 44px. The rule is in Conventions and it was still

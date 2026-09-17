@@ -2688,10 +2688,48 @@ function commitRosterRestore(rp){
   if(rp.add.length||rp.offerTeam) markRosterSaved();
 }
 
-/* Works out what a restore would do without doing any of it. */
-function planRestore(rows){
+/* Works out what a restore would do without doing any of it.
+
+   CHALK-142. `rosterPlan` is not optional in practice, and leaving it out is
+   the bug this ticket exists for. Two restore paths create players: CHALK-121
+   creates them from outing rows, because an outing with no matching player
+   contributes nothing to the rest calculation and under-reports a boy's count;
+   CHALK-125 creates them from the Roster tab. Both were planned against the
+   roster AS IT WAS, four days apart, and nothing dedupes between them. On a new
+   phone, clear then paste then restore, every player with an outing arrived
+   twice: 11 + 4 = 15 from an 11 player sheet. Neither ticket was wrong. The
+   interaction was never considered.
+
+   THE MATCH KEY IS THE NORMALISED NAME, and that is a decision, not an
+   inheritance:
+
+   - It is the only field in every row of BOTH tabs. A Game Log row carries a
+     jersey only if the player had one when it was written, and outingPayload
+     sends '' when he did not, so the jersey cannot be a required key.
+   - The two tabs disagree about the jersey's TYPE. Roster holds "01" as text,
+     because CHALK-125 sets the number format before the values; Game Log holds
+     1 as a real number and has since day one. A jersey key is therefore broken
+     today, and "normalising" it would be deciding that 01 and 1 are the same
+     player, which is true for the boy who hit this and false for any team that
+     ever had both a 01 and a 1.
+   - Name's failure mode is that correcting a typo splits a player. That is
+     visible, the coach sees two rows, and he can fix it. The jersey's failure
+     mode is silent and ends in a wrong rules answer, which is the one kind of
+     wrong this app cannot afford.
+
+   So the jersey is NOT normalised for matching anywhere. It stays data, and the
+   Roster tab is the copy that wins, which is what makes 01 survive a restore.
+   A player who exists ONLY in the Game Log still cannot recover a lost leading
+   zero, because the sheet stored that column as a number before he got here.
+   That is the sheet's fault and it needs a change on the write side. */
+function planRestore(rows,rosterPlan){
   var here={}; S.outings.forEach(function(o){ here[String(o.id)]=true; });
-  var known={}; S.roster.forEach(function(p){ known[normName(p.name)]=p.id; });
+  /* Everyone who will EXIST by the time this plan commits: on the device now,
+     plus whoever the roster plan is about to add. Counting only the first half
+     is CHALK-142. */
+  var known={};
+  S.roster.forEach(function(p){ known[normName(p.name)]=p.id; });
+  ((rosterPlan&&rosterPlan.add)||[]).forEach(function(a){ known[a.key]=true; });
 
   var add=[], already=0, unreadable=0, newPlayers={};
   rows.forEach(function(r){
@@ -2721,6 +2759,13 @@ function commitRestore(plan){
   var known={}; S.roster.forEach(function(p){ known[normName(p.name)]=p.id; });
   var stamp=Date.now(), n=0;
   Object.keys(plan.newPlayers).forEach(function(k){
+    /* CHALK-142, the second line of defence. known is rebuilt here from the
+       roster as it is NOW, after the roster restore has committed, and it was
+       being rebuilt and then not consulted. A plan can also be older than the
+       roster for one more reason: the coach can add a player in Settings with
+       the preview still open. Either way the existing player wins and his
+       outings attach to him. */
+    if(known[k]) return;
     var np=plan.newPlayers[k];
     var id='p'+stamp+'_'+(n++)+Math.floor(Math.random()*99);
     S.roster.push({id:id,name:np.name,number:np.number});
@@ -2960,8 +3005,10 @@ function openRestore(){
     fetchSheetRows('Game Log'),
     fetchSheetRows('Roster').catch(function(){ return []; })
   ]).then(function(res){
-    var plan=planRestore(res[0]);
+    /* CHALK-142. Roster first, and the outing plan is TOLD about it. The
+       commit order was already roster first; only the planning was blind. */
     var rp=planRosterRestore(res[1]);
+    var plan=planRestore(res[0],rp);
     var h='<h2 class="sheetTitle">Restore from sheet</h2>';
 
     if(!plan.add.length&&!rp.add.length&&!rp.offerTeam){
