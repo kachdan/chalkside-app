@@ -57,20 +57,41 @@
   --text-secondary:#5F6469;
   --text-tertiary:#949494;
   --text-count:#474747;        /* the count at rest, softer than primary */
-  --text-accent:#08487D;
+  --text-accent:#0D4ECF;
   --text-on-accent:#FFFFFF;
 
-  /* brand */
-  --brand-primary:#08487D;
-  --brand-primary-strong:#063A66;
-  --brand-tint:#E1EAF3;
+  /* brand. CHALK-140: the brand was never blue. It was navy/800, a heading
+     weight navy doing a button's job, while the blue family sat in the ramps
+     being used for status/info only. Brand moves to blue. This is the one
+     token change that is NOT a no-op in Light, so do not regression check it
+     by looking for "nothing moved". */
+  --brand-primary:#0D4ECF;
+  --brand-primary-strong:#0439A1;
+  --brand-tint:#E7F0FF;
 
   /* status */
   --status-safe:#3F9A4D;
   --status-caution:#DD9821;
   --status-caution-strong:#B77A15;
   --status-stop:#DC0C1D;
-  --status-info:#1F66F6;       /* reserved, currently unused */
+  /* CHALK-140. Primary + Danger needs a FILL red, and status/stop is a text
+     and border red. THESE TWO ARE NOT FROM FIGMA and are flagged for Dan.
+
+     They are single valued in both themes, like the rest band fills, because
+     the measurement says so rather than for tidiness. In Dark, filling with
+     status/stop (#E8434F) gives a 3.65 label: the blue/800 mistake again, in
+     red. One step down passes both ways, and one step further down fails the
+     other way, 2.59 shape. The window is one value wide:
+
+         dark fill #E8434F   label 3.65 FAIL   shape 4.78
+         dark fill #DC0C1D   label 4.75 pass   shape 3.68 pass
+         dark fill #B00A17   label 6.73 pass   shape 2.59 FAIL   */
+  --status-stop-fill:#DC0C1D;
+  --status-stop-strong:#B00A17;
+  /* reserved, currently unused. CHALK-140 made this worse, not better: brand
+     is now the blue family, so status/info is the same hue as the brand and
+     cannot mean anything on its own. Do not reach for it. */
+  --status-info:#1F66F6;
 
   /* the rest bands. A coach reads these to decide whether to leave a kid in,
      so they are tokens in their own right and not tints of the status set. */
@@ -121,12 +142,19 @@
   --text-secondary:#9AA1A8;
   --text-tertiary:#7E858C;
   --text-count:#C9CDD1;
-  --text-accent:#86B6E2;
+  --text-accent:#6D9FFF;
   --text-on-accent:#F4F7FA;
 
-  --brand-primary:#2A6FAE;
-  --brand-primary-strong:#1E5A94;
-  --brand-tint:#15293C;
+  /* CHALK-140. Dan picked blue/800 for dark and this is blue/600 instead.
+     blue/800 measures 1.88:1 against the dark page: the LABEL on it was 9.28,
+     excellent, and the button itself would have had almost no shape, white
+     text floating with no edge. blue/600 gives label 4.55 and shape 3.83, both
+     pass, and it is far more saturated than the washed out blue it replaces.
+     Do not "correct" this back to blue/800 on the strength of label contrast.
+     Label contrast and shape contrast are two different measurements. */
+  --brand-primary:#1F66F6;
+  --brand-primary-strong:#0D4ECF;
+  --brand-tint:#10203A;
 
   --status-safe:#4FAE5D;
   --status-caution:#E0A63E;
@@ -180,13 +208,63 @@ h2{
 .pad{padding:14px 16px;}
 .rule{height:1px;background:var(--border-rule);border:0;margin:0;}
 button{font-family:inherit;font-size:16px;color:inherit;cursor:pointer;}
+/* CHALK-140. Three axes, the way Dan's own design system separates them, in
+   place of the four ad hoc button looks this file had grown.
+
+     Type    SHAPE        Primary, Secondary, Tertiary
+     Status  COLOUR       Default, Danger
+     State   INTERACTION  Default, Pressed, Disabled
+
+   Type is the only axis that changes the shape. Danger overrides colour and
+   nothing else, so a danger button is still recognisably the same control.
+   That is what makes Secondary + Danger the right answer for the destructive
+   button rather than a fourth type of button.
+
+   NO HOVER, anywhere in this file. A finger does not hover, and on a touch
+   device a hover rule sticks after the tap and reads as a stuck state. */
+
+/* Secondary is the base: .btn on its own. */
 .btn{
-  background:var(--surface-raised);border:1.5px solid var(--border-rule);border-radius:10px;
-  padding:12px 14px;min-height:48px;font-weight:500;
+  background:var(--surface-control);border:1.5px solid var(--border-rule);border-radius:10px;
+  padding:12px 14px;min-height:48px;font-weight:500;color:var(--text-primary);
 }
 .btn:active{background:var(--surface-tap);}
-.btn.primary{background:var(--brand-primary);color:var(--text-on-accent);border-color:var(--brand-primary);}
+
+/* Primary: filled brand, on-accent label, no border. The border is kept and
+   made transparent rather than removed, so Primary and Secondary are the same
+   height to the pixel and can sit in one row. It is geometry, not decoration. */
+.btn.primary{
+  background:var(--brand-primary);color:var(--text-on-accent);border-color:transparent;
+}
 .btn.primary:active{background:var(--brand-primary-strong);}
+
+/* Tertiary: no fill, no border, accent label. It has no boundary BY DEFINITION,
+   which is why it is wrong for anything that has to be found under pressure.
+   Undo is Secondary for exactly that reason. */
+.btn.tertiary{
+  background:transparent;border-color:transparent;color:var(--text-accent);
+}
+.btn.tertiary:active{background:var(--surface-tap);}
+
+/* Danger is colour only. Shape comes from the Type above it. */
+.btn.danger{
+  color:var(--status-stop);
+  border-color:var(--status-stop);
+  background:var(--surface-control);
+}
+.btn.danger:active{background:var(--surface-tap);}
+.btn.primary.danger{
+  background:var(--status-stop-fill);color:var(--text-on-accent);border-color:transparent;
+}
+.btn.primary.danger:active{background:var(--status-stop-strong);}
+.btn.tertiary.danger{
+  background:transparent;border-color:transparent;color:var(--status-stop);
+}
+.btn.tertiary.danger:active{background:var(--surface-tap);}
+
+/* Disabled is one value for every type and status. */
+.btn[disabled]{opacity:.4;}
+
 .btn.wide{width:100%;}
 :focus-visible{outline:3px solid var(--brand-primary);outline-offset:2px;}
 /* CHALK-136. A field and a secondary button were drawn with the same two
@@ -333,7 +411,6 @@ input,select{
 
 .controls{display:flex;gap:10px;padding:0 16px 12px;}
 /* the two that are left share the row rather than leaving Undo's gap behind */
-.controls .btn{flex:1;}
 .controls .btn{flex:1;}
 
 /* ---------- tabs ---------- */
@@ -691,13 +768,8 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 }
 .field .fhelp{margin:var(--space-8) 0 0;}
 
-/* CHALK-124 folds in here: Clear everything must not look like Send unsent. */
-.btn.danger{
-  color:var(--status-stop);
-  border-color:color-mix(in srgb,var(--status-stop) 45%,var(--border-rule));
-  background:var(--surface-page);
-}
-.btn.danger:active{background:color-mix(in srgb,var(--status-stop) 12%,var(--surface-page));}
+/* CHALK-124, Clear everything must not look like Send unsent, is now carried by
+   the Status axis in the button block above rather than by a rule of its own. */
 .phead .eyebrow{
   font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
   color:var(--text-secondary);

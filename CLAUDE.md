@@ -54,21 +54,27 @@ Hierarchy comes from size and weight, never from a second typeface.
 Tokens live in `:root` at the top of each file. Never hardcode a hex value
 anywhere else.
 
-```
---primary:#08487D    /* buttons, active nav, jersey chips */
---primary-dark:#063A66
---paper:#FFFFFF      /* page background, chosen for sun readability */
---paper-2:#F4F5F7    /* cards and surfaces */
---ink:#16181A        /* primary text */
---ink-soft:#5F6469   /* secondary text */
---gray:#949494       /* borders and disabled only, too light for text */
---rule:#D9DCE0
---safe:#3F9A4D       /* success */
---caution:#DD9821    /* warning */
---caution-dark:#B77A15
---stop:#DC0C1D       /* error */
---info:#1F66F6       /* reserved, currently unused, fights --primary */
-```
+**The token list is not repeated here.** It lives in `:root` and
+`[data-theme="dark"]` at the top of `pitch-count.html`, with the Figma names
+flattened, and that block is the only copy. A second list in this file went
+stale the moment CHALK-126 renamed everything, and it still said the brand was
+navy after CHALK-140 made it blue. Read the file.
+
+Two things about it that are decisions rather than values:
+
+- **Brand is the blue family, not navy.** CHALK-140. The old brand was navy/800,
+  a heading weight navy doing a button's job. Light is not a no-op for that
+  change, so do not regression check it by looking for "nothing moved".
+- **`status/info` is unusable.** It is the same hue as the brand now, so it
+  cannot mean anything on its own. It is still reserved, and still unused.
+
+Buttons are three axes, not four looks: Type (Primary, Secondary, Tertiary) sets
+the SHAPE, Status (Default, Danger) sets COLOUR ONLY, State (Default, Pressed,
+Disabled) is the interaction. Danger never changes shape, which is why the
+destructive button is Secondary + Danger and not a fourth type. Tertiary has no
+boundary by definition, so it is wrong for anything that has to be found under
+pressure. **No hover rules anywhere.** A finger does not hover, and on a touch
+device the hover state sticks after the tap and reads as stuck.
 
 Icons: **Lucide** (lucide.dev), ISC licensed, inlined as raw SVG so the app
 works with no signal at the field. Never load icons from a CDN.
@@ -353,6 +359,31 @@ either quote the signature you are calling or say plainly at the call site that
 it is unverified.** A deliverable that cannot be run here gets a note saying
 which calls were checked against the real file and which were not. Silence reads
 as verified.
+
+### A filled control needs two contrast measurements, not one
+
+**Label contrast says nothing about whether a filled control separates from the
+surface behind it.** They are two different measurements against two different
+backgrounds, and a colour can ace one while failing the other:
+
+| | label on the fill | fill against the page |
+| --- | --- | --- |
+| blue/800 on the dark page | 9.28, excellent | **1.88**, a white label floating with no edge |
+| blue/600 on the dark page | 4.55 | 3.83 |
+| dark danger fill #E8434F | **3.65** | 4.78 |
+| dark danger fill #DC0C1D | 4.75 | 3.68 |
+
+The window can be one ramp step wide in both directions: for the dark danger
+fill, one step up fails the label and one step down fails the shape.
+
+This has nearly shipped three times, each time by checking the label and
+stopping: the FAB fill matching the bar, the rest bands, and the CHALK-140
+brand. A colour chosen for text is not automatically usable as a fill, which is
+why `status/stop` and `status/stop-fill` are two tokens.
+
+So: **for anything filled, measure the fill against what is behind it AND the
+label against the fill.** Check shape first, since it is the one that gets
+forgotten. 3:1 for the shape, 4.5:1 for the label.
 
 ### A test double's signature is copied from the real one, never recalled
 
