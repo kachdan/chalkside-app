@@ -360,6 +360,32 @@ it is unverified.** A deliverable that cannot be run here gets a note saying
 which calls were checked against the real file and which were not. Silence reads
 as verified.
 
+### Measure the hit area, not the box, and measure the HEIGHT
+
+Every tap target is at least 44px. The rule is in Conventions and it was still
+being broken, because what gets measured is the visible box and usually only its
+width. The inning tag sat at 52x32 for two tickets: the width looked fine, the
+height was never checked, and it only surfaced when CHALK-140 removed a glyph
+and took the width to 39 as well.
+
+Two things follow.
+
+**The hit area and the visual are different things, and the hit area is the one
+that has to be 44.** A control can keep the size a designer drew and still take
+a thumb, via a pseudo element with negative insets. Nothing changes on screen.
+Do not widen a component to satisfy this rule; extend what it catches.
+
+**Measure it by asking the page, not by reading the CSS.** Walk a grid of points
+out from the centre and call `document.elementFromPoint` at each one. That is
+the hit test the phone will run. Reading the rule you just wrote tells you what
+you wrote, not what a finger lands on.
+
+Two traps found doing it: a probe with an inner budget that is smaller than the
+element reports the budget rather than the element, and a test that taps ten
+times to check a counter CHANGES THE LABEL, which changes the width, which
+invalidates the extent it measured a moment earlier. Measure, then act, then
+measure again: never once across a mutation.
+
 ### A filled control needs two contrast measurements, not one
 
 **Label contrast says nothing about whether a filled control separates from the

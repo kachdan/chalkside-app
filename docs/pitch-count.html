@@ -538,6 +538,20 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
   min-height:32px;padding:3px 9px;border-radius:4px;
   background:var(--brand-tint);color:var(--text-accent);
   font-size:16px;font-weight:600;cursor:pointer;
+  position:relative;                      /* for the hit area below */
+}
+/* The tag is 32 tall by design and, with the CHALK-140 triangle gone, 39 wide.
+   Both are under the 44px minimum, and the HEIGHT always was: at 52x32 nobody
+   measured the dimension that matters to a thumb. Removing the glyph did not
+   create that, it made it impossible to ignore.
+
+   So the HIT AREA grows and the tag does not. This pseudo element is part of
+   .inn for hit testing, so a tap anywhere in it advances the inning, and it
+   draws nothing. 32+12 = 44 tall, and 39+6 = 45 wide at the narrowest label.
+   It reaches 3px each side into the strip, which is 10px from the belief text,
+   so the catcher target loses nothing a thumb can find. */
+.stateline .inn::after{
+  content:'';position:absolute;inset:-6px -3px;
 }
 .stateline .inn:active{background:var(--brand-primary);color:var(--text-on-accent);}
 .stateline .belief{
