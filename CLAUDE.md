@@ -370,16 +370,30 @@ backgrounds, and a colour can ace one while failing the other:
 | --- | --- | --- |
 | blue/800 on the dark page | 9.28, excellent | **1.88**, a white label floating with no edge |
 | blue/600 on the dark page | 4.55 | 3.83 |
-| dark danger fill #E8434F | **3.65** | 4.78 |
-| dark danger fill #DC0C1D | 4.75 | 3.68 |
+| dark danger fill, status/stop | **3.65** | 4.78 |
+| dark danger fill, red/600 | 4.75 | 3.68 |
+| dark danger fill, red/700 | 6.51 | 2.68 |
 
 The window can be one ramp step wide in both directions: for the dark danger
 fill, one step up fails the label and one step down fails the shape.
+
+**The threshold depends on the state, not only the size.** red/700's 2.68 is
+fine as the PRESSED fill and would not be as the resting one: pressed is
+momentary, on a control whose position the resting state has already
+established. Do not apply a resting-state number to a state nobody sees at rest.
 
 This has nearly shipped three times, each time by checking the label and
 stopping: the FAB fill matching the bar, the rest bands, and the CHALK-140
 brand. A colour chosen for text is not automatically usable as a fill, which is
 why `status/stop` and `status/stop-fill` are two tokens.
+
+There is a third surface to check, and it is the one that caught us out:
+**a red that reads on the PAGE is not the red that reads on a CONTROL.** Dark's
+`status/stop` measures 4.78 on surface/page and 4.31 on surface/control, so
+moving a label from one to the other broke it while the token stayed correct
+everywhere it already was. The lever is a new semantic token,
+`status/stop-on-control`, not a change to the one that works. **Do not fix a
+control by moving a token that is right somewhere else.**
 
 So: **for anything filled, measure the fill against what is behind it AND the
 label against the fill.** Check shape first, since it is the one that gets

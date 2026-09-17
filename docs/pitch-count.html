@@ -73,21 +73,31 @@
   --status-safe:#3F9A4D;
   --status-caution:#DD9821;
   --status-caution-strong:#B77A15;
-  --status-stop:#DC0C1D;
-  /* CHALK-140. Primary + Danger needs a FILL red, and status/stop is a text
-     and border red. THESE TWO ARE NOT FROM FIGMA and are flagged for Dan.
+  /* status/stop is the red for text and borders AGAINST THE PAGE. That is its
+     whole job, and it is correct everywhere it is used today. It does not
+     survive being moved onto a fill or onto a control, which is what the two
+     tokens below exist for. All three are ramp steps. */
+  --status-stop:#DC0C1D;              /* red/600 */
 
-     They are single valued in both themes, like the rest band fills, because
-     the measurement says so rather than for tidiness. In Dark, filling with
-     status/stop (#E8434F) gives a 3.65 label: the blue/800 mistake again, in
-     red. One step down passes both ways, and one step further down fails the
-     other way, 2.59 shape. The window is one value wide:
+  /* CHALK-140. The fill for a filled danger button, and its pressed state.
+     Filling with Dark's status/stop (#E8434F) gives a 3.65 label: the blue/800
+     mistake again, in red. The resting window is one ramp step wide:
 
-         dark fill #E8434F   label 3.65 FAIL   shape 4.78
-         dark fill #DC0C1D   label 4.75 pass   shape 3.68 pass
-         dark fill #B00A17   label 6.73 pass   shape 2.59 FAIL   */
-  --status-stop-fill:#DC0C1D;
-  --status-stop-strong:#B00A17;
+         dark fill status/stop       label 3.65 FAIL   shape 4.78
+         dark fill red/600 #DC0C1D   label 4.75 pass   shape 3.68 pass
+         dark fill red/700 #B60013   label 6.51 pass   shape 2.68 weak
+
+     red/700 is the pressed value despite that 2.68. Pressed is momentary, on a
+     control whose position the resting state has already established, so shape
+     matters less there than on a button sitting still. */
+  --status-stop-fill:#DC0C1D;         /* red/600 */
+  --status-stop-strong:#B60013;       /* red/700 */
+
+  /* CHALK-140. A red that reads on the PAGE is not the red that reads on a
+     CONTROL, and a semantic layer exists to say so. Dark's status/stop on
+     surface/control measures 4.31 and fails; this is the value that does not.
+     Secondary and Tertiary danger labels use it. */
+  --status-stop-on-control:#DC0C1D;   /* red/600, 4.68 on control in Light */
   /* reserved, currently unused. CHALK-140 made this worse, not better: brand
      is now the blue family, so status/info is the same hue as the brand and
      cannot mean anything on its own. Do not reach for it. */
@@ -159,7 +169,8 @@
   --status-safe:#4FAE5D;
   --status-caution:#E0A63E;
   --status-caution-strong:#C98E22;
-  --status-stop:#E8434F;
+  --status-stop:#E8434F;              /* unchanged: text and borders on page */
+  --status-stop-on-control:#FF4541;   /* red/500, 4.98 on surface/control */
   --status-info:#5B93FF;
 
   /* CHALK-129. The ticket that "the pair is tight in Light" became.
@@ -248,7 +259,7 @@ button{font-family:inherit;font-size:16px;color:inherit;cursor:pointer;}
 
 /* Danger is colour only. Shape comes from the Type above it. */
 .btn.danger{
-  color:var(--status-stop);
+  color:var(--status-stop-on-control);
   border-color:var(--status-stop);
   background:var(--surface-control);
 }
@@ -258,7 +269,7 @@ button{font-family:inherit;font-size:16px;color:inherit;cursor:pointer;}
 }
 .btn.primary.danger:active{background:var(--status-stop-strong);}
 .btn.tertiary.danger{
-  background:transparent;border-color:transparent;color:var(--status-stop);
+  background:transparent;border-color:transparent;color:var(--status-stop-on-control);
 }
 .btn.tertiary.danger:active{background:var(--surface-tap);}
 
@@ -923,7 +934,11 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
       <button class="stateline" id="catcherBtn" aria-label="Change the catcher">
         <span class="inn" id="inningBtn" role="button" tabindex="0"
               aria-label="Start the next inning">
-          <svg viewBox="0 0 24 24" width="8" height="8" aria-hidden="true"><path d="M12 5l7 12H5z" fill="currentColor"/></svg>
+          <!-- CHALK-140. The triangle is gone. It always pointed up, it was
+               wired to nothing, and a fixed arrow reads as information while
+               being decoration. CHALK-141 brings one back meaning top versus
+               bottom, derived rather than drawn, and ABSENT when home and away
+               cannot be determined. Do not put a static one back. -->
           <span id="inningNum">1st</span>
         </span>
         <span class="belief" id="beliefText"></span>
