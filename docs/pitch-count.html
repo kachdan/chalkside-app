@@ -1232,37 +1232,61 @@ function dayTotal(pid){
 function planClearFix(rows){
   var day={}, order=[];
   (rows||[]).forEach(function(r){
+    var id=String(sheetField(r,['id'])).trim();
     var name=String(sheetField(r,['name','player'])).trim();
     var date=String(sheetField(r,['date'])).trim();
     var pitches=parseInt(sheetField(r,['pitches']),10);
     var clear=String(sheetField(r,['cleartopitch','clear'])).trim();
-    if(!name||!/^\d{4}-\d{2}-\d{2}$/.test(date)||isNaN(pitches)) return;
+    /* no id means the script cannot address the row, so it is left alone
+       rather than matched on a name */
+    if(!id||!name||!/^\d{4}-\d{2}-\d{2}$/.test(date)||isNaN(pitches)) return;
     var k=name+'|'+date;
     if(!day[k]){ day[k]={player:name,date:date,total:0,seen:[]}; order.push(k); }
     day[k].total+=pitches;
-    day[k].seen.push(clear);
+    day[k].seen.push({id:id,clear:clear});
   });
   var fix=[],ok=0;
   order.forEach(function(k){
     var d=day[k];
     var want=eligibleDate(d.date,d.total);
-    var wrong=d.seen.filter(function(c){ return c!==want; }).length;
-    if(wrong) fix.push({player:d.player,date:d.date,eligible:want,rows:wrong});
+    var wrong=d.seen.filter(function(c){ return c.clear!==want; });
+    /* grouped by player and date to WORK OUT the day total and to show him a
+       readable line, but sent as ids, because ids are what the sheet is keyed
+       by and a name can be corrected out from under a match */
+    if(wrong.length) fix.push({player:d.player,date:d.date,eligible:want,
+                               rows:wrong.length,
+                               ids:wrong.map(function(c){ return c.id; })});
     else ok+=d.seen.length;
   });
   return {days:order.length,fix:fix,alreadyRight:ok};
 }
 
-/* What the rows remaining for that player and date should now say.
-   Computed AFTER the local change so it reflects the new day total, and null
-   when nothing is left for that date, because then there is no row to correct. */
+/* What the rows remaining for that player and date should now say, keyed by
+   SHEET ID rather than by player and date.
+
+   It used to send {player, date, eligible} and the script matched rows on name
+   and date. That had two faults. It needed the player's NAME, which the app
+   loses the moment he is removed from the roster, so deleting one of his two
+   same-day outings left the survivor with a stale cell and no error. And
+   matching on a name breaks silently if a typo in a name is ever corrected.
+
+   Ids are what the sheet is actually keyed by. findRowById already exists, so
+   this deletes the date-and-name matching loop on the script side along with
+   the instanceof Date conversion inside it, which is a known trap in that file.
+
+   Returns null when nothing is left for that date, because then there is no row
+   to correct. */
+function restateRows(pid,date){
+  var rest=S.outings.filter(function(x){ return x.pitcherId===pid&&x.date===date; });
+  if(!rest.length) return null;
+  var total=0;
+  rest.forEach(function(x){ total+=(+x.pitches||0); });
+  var eligible=eligibleDate(date,total);
+  return {rows:rest.map(function(x){ return {id:x.id,eligible:eligible}; })};
+}
 function restateFor(o){
   if(!o) return null;
-  var p=S.roster.filter(function(r){return r.id===o.pitcherId;})[0];
-  if(!p) return null;
-  var total=pitchesOn(o.pitcherId,o.date);
-  if(!total) return null;
-  return {player:p.name,date:o.date,eligible:eligibleDate(o.date,total)};
+  return restateRows(o.pitcherId,o.date);
 }
 
 /* ---------------- CHALK-109, share availability ----------------
@@ -1414,8 +1438,11 @@ function openClearFix(){
        '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
     el('sheetInner').innerHTML=h;
     el('clearFixGo').addEventListener('click',function(){
-      var body={action:'restateClear',sheet:'Game Log',
-                entries:plan.fix.map(function(f){ return {player:f.player,date:f.date,eligible:f.eligible}; })};
+      var rows=[];
+      plan.fix.forEach(function(f){
+        f.ids.forEach(function(id){ rows.push({id:id,eligible:f.eligible}); });
+      });
+      var body={action:'restateClear',sheet:'Game Log',rows:rows};
       el('sheetInner').innerHTML='<h2 class="sheetTitle">Fix clear dates</h2><div class="muted">Writing\u2026</div>';
       fetch(syncUrl(),{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
                        body:JSON.stringify(body)})
@@ -2517,7 +2544,11 @@ function outingPayload(rec){
     pitches:rec.pitches,
     opponent:rec.opponent||'',
     eligible:el2,
-    loggedAt:new Date().toISOString()
+    loggedAt:new Date().toISOString(),
+    /* CHALK-119. Every row for this player on this date, including the one
+       being appended. A second outing on a date makes the earlier ones stale
+       the moment it lands, so they are corrected in the same write. */
+    restate:restateRows(rec.pitcherId,rec.date)
   };
 }
 
@@ -3108,16 +3139,50 @@ el('restoreBtn').addEventListener('click',openRestore);
    list, the same component the catcher picker uses. The state lives out here so
    the sheet can be re-rendered after the picker without losing what he typed.
 
-   The DATE stays native. DECIDED by Dan on 17 Sep, not left open: a custom
-   picker is too much surface for a control used a few times a season, and the
-   native one is an inline wheel rather than a white dialog, so it never carried
-   the problem CHALK-130 was about. Do not build one.
+   CHALK-134. The date is a row list of recent GAMES first, and the native
+   input second. CHALK-130 kept the wheel deliberately, because it is inline
+   rather than a white dialog and so never carried the dark mode problem; this
+   takes it off the common path instead of restyling it. The dates are already
+   in the sheet from CHALK-117, so this costs no new data.
 
-   The better fix is not a picker at all. CHALK-117 already put the schedule in
-   the sheet, so this can offer the recent GAME dates as a row list: fewer taps
-   than a wheel, and it removes the control rather than restyling it. Its own
-   ticket, not started. */
-var manual={pid:null,date:null,pitches:0};
+   Games only, newest first, opponent named. With no schedule connected the
+   native input is all there is and nothing errors. Do NOT build a custom
+   picker: Other date is the escape hatch and it stays native. */
+var manual={pid:null,date:null,pitches:0,other:false};
+
+/* CHALK-134. Recent GAME dates from the schedule, newest first, opponent named.
+   Practices are excluded: a past outing is a game, and offering a practice date
+   would invite a wrong one.
+
+   Capped at six, because this is a list to recognise a date in rather than a
+   history to browse, and the native input is still there for anything older.
+   With no schedule the whole block is absent and the input is simply shown. */
+function recentGameDates(){
+  var t=todayStr(), out=[];
+  schedule().forEach(function(e){
+    if(e.kind==='game'&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)&&e.date<=t) out.push(e.date);
+  });
+  out.sort(); out.reverse();
+  var seen={},u=[];
+  out.forEach(function(d){ if(!seen[d]){ seen[d]=1; u.push(d); } });
+  return u.slice(0,6);
+}
+function recentGameRows(){
+  var games=recentGameDates();
+  if(!games.length) return '';          /* no schedule: the native input is all there is */
+  var h='';
+  games.forEach(function(d){
+    var opp=opponentOn(d);
+    h+='<button class="crow" data-mdate="'+d+'">'+
+       '<span class="cn">'+esc(pretty(d))+'</span>'+
+       (opp?'<span class="cin">'+esc(opp)+'</span>':'')+
+       '<span class="ctick">'+((!manual.other&&manual.date===d)?'\u2713':'')+'</span></button>';
+  });
+  h+='<button class="crow" data-mdate="other">'+
+     '<span class="cn">Other date</span>'+
+     '<span class="ctick">'+(manual.other?'\u2713':'')+'</span></button>';
+  return h;
+}
 function openManualAdd(){
   if(!S.roster.length){ goSettings('team'); return; }
   if(!manual.pid) manual.pid=S.roster[0].id;
@@ -3132,7 +3197,9 @@ function openManualAdd(){
       '<span class="cn">'+esc(p?((p.number?p.number+'  ':'')+p.name):'Choose')+'</span>'+
       '<span class="ctick">\u203a</span></button>'+
     '<label class="flabel" style="margin-top:14px">Date</label>'+
-    '<input type="date" id="mDt" value="'+esc(manual.date)+'">'+
+    recentGameRows()+
+    '<input type="date" id="mDt" value="'+esc(manual.date)+'"'+
+      (manual.other?'':' hidden')+'>'+
     '<label class="flabel" style="margin-top:14px">Pitches</label>'+
     '<input type="number" id="mPc" inputmode="numeric" value="'+(manual.pitches||'')+'" placeholder="0">'+
     '<p class="muted" id="mErr" style="margin-top:8px;color:var(--status-stop)"></p>'+
@@ -3144,18 +3211,29 @@ function openManualAdd(){
     manual.pitches=parseInt(el('mPc').value,10)||0;
     pickPlayer('Whose outing?',manual.pid,function(id){ manual.pid=id; openManualAdd(); });
   });
+  Array.prototype.forEach.call(el('sheetInner').querySelectorAll('[data-mdate]'),function(b){
+    b.addEventListener('click',function(){
+      manual.pitches=parseInt(el('mPc').value,10)||0;
+      if(b.dataset.mdate==='other'){ manual.other=true; }
+      else { manual.date=b.dataset.mdate; manual.other=false; }
+      openManualAdd();
+    });
+  });
   el('mSave').addEventListener('click',function(){
     var pc=parseInt(el('mPc').value,10)||0;
     /* inline, next to the field, rather than a dialog on top of a dialog */
     if(pc<=0){ el('mErr').textContent='Enter a pitch count above zero.'; el('mPc').focus(); return; }
     S.outings.push({id:'o'+Date.now(),pitcherId:manual.pid,
                     date:el('mDt').value||todayStr(),pitches:pc,synced:false});
-    manual={pid:null,date:null,pitches:0};
+    manual={pid:null,date:null,pitches:0,other:false};
     save(); closeSheet(); renderAll();
   });
 }
 el('addManual').addEventListener('click',function(){
-  manual={pid:null,date:null,pitches:0};
+  /* default to the most recent game when the schedule knows one, since a past
+     outing is nearly always the last game played */
+  var recent=recentGameDates();
+  manual={pid:null,date:recent.length?recent[0]:null,pitches:0,other:!recent.length};
   openManualAdd();
 });
 
