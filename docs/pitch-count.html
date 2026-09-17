@@ -989,11 +989,20 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
     <button data-go="count" class="fab on" aria-label="Count">
       <svg viewBox="0 0 24 24"><path d="M2 12c5.5 0 10-4.5 10-10"/><circle cx="12" cy="12" r="10"/><path d="M22 12c-5.5 0-10 4.5-10 10"/><path d="m8 11.5-1.5-2"/><path d="m11.5 8-2-1.5"/><path d="m14.5 17.5-2-1.5"/><path d="m17.5 14.5-1.5-2"/></svg>
     </button>
-    <!-- CHALK-111 takes the slot CHALK-127 freed. bat-ball from @lucide/lab
-         v0.7.0, ISC, path copied from the package rather than redrawn: Lucide
-         core has no bat, and the Figma icon is a hand drawn stand in. -->
+    <!-- CHALK-111 takes the slot CHALK-127 freed.
+
+         icon: homePlate. CUSTOM, not Lucide. Lucide has no home plate in core
+         or in Lab, and what shipped first was bat-ball from @lucide/lab, which
+         at 22px reads as a paddle and a ball. Pickleball, not baseball.
+
+         Home plate is the only shape unique to baseball, it is literally where
+         the batter stands, and it pairs with the baseball on the FAB: the ball
+         is what you throw, the plate is where you hit. Single stroke, so it
+         keeps the grammar of every other icon in the bar. Four alternatives
+         built from the chalk lines were drawn and rejected; at 22px the extra
+         elements become specks, and the label already says Batting. -->
     <button data-go="batting" aria-label="Batting">
-      <svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="4"/><path d="m4 8 10 10"/><path d="M20.8 15.2c1.9-3.4 1.4-7.7-1.4-10.6-3.5-3.5-9.1-3.5-12.5 0-4.7 4.7-5.1 6.9-1.4 11.1l-2.9 2.9c-.8.8-.8 2 0 2.8.8.8 2 .8 2.8 0l2.9-2.9c2.6 2.3 4.5 3 6.6 2.1"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M5 4h14v8l-7 7-7-7Z"/></svg>
       <span>Batting</span></button>
     <button data-go="settings" aria-label="Settings">
       <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
