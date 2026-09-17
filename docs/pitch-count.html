@@ -513,19 +513,28 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
    tappable: shorter, page fill, the lighter rule, no shadow. The hierarchy is
    the instruction, so nobody has to be told which one they hit all game.
    Measurements are the Figma frame: 175 wide, 152 and 120 tall, 12px gutters. */
-/* CHALK-111. Foul and Undo are a pair at 70px, both secondary, above the one
-   primary. The longest label the app can produce is "Undo new batter" at 15
-   characters; it is allowed to wrap to two lines rather than being shortened,
-   because knowing WHAT you are undoing is the whole reason the label names its
-   target. */
+/* CHALK-111. Foul and Undo are a pair, both secondary, above the one primary.
+
+   Both FILL and carry no side padding, which is what makes the columns line up:
+   this grid is the same 1fr 1fr with a 12px gap as .tiles, inside the same 16px
+   pad, so Foul's left edge is Ball's and Out's, and Undo's right edge is
+   Strike's and Inning's. That alignment is the point of the change, not a side
+   effect, so do not give either button a fixed width or horizontal padding.
+
+   56 high, not 70. 32 below to New batter: enough that the primary reads as a
+   different kind of action without floating away from the pair.
+
+   The longest label the app can produce is "Undo new batter". It is allowed to
+   wrap rather than be shortened, because knowing WHAT you are undoing is the
+   whole reason the label names its target. */
 .pairrow{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-12);margin-top:var(--space-20);}
 .act2{
-  min-height:70px;
+  min-height:56px;
   background:var(--surface-control);
   border:1.5px solid var(--border-rule);
   border-radius:var(--radius-lg);
   font-size:17px;font-weight:600;
-  line-height:1.2;padding:10px 12px;
+  line-height:1.2;padding:8px 0;
   display:flex;align-items:center;justify-content:center;text-align:center;
 }
 .act2[disabled]{opacity:.4;}
@@ -931,7 +940,7 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
         <button class="btn act2" id="batFoul">Foul</button>
         <button class="btn act2" id="batUndo" disabled>Undo</button>
       </div>
-      <button class="btn primary wide" id="batNew" style="margin-top:10px">New batter</button>
+      <button class="btn primary wide" id="batNew" style="margin-top:32px">New batter</button>
       <p class="muted" style="margin-top:12px">Foul is for when you are watching.
       New batter is for when you were not: tap it and the count starts fresh.</p>
     </div>
