@@ -321,6 +321,27 @@ Three name collisions have shipped this way: `ordinal`, `batBall`, `ask`. Run
 `tools/check-names.sh` and `tools/check-syntax.sh` before any commit that adds
 a top level name.
 
+### Never write a call into code you have not read
+
+`chalksideRestateClear` called `findRowById(r.id)`. That function takes
+`(sheet, id)`, so the id went in as the sheet, the id came out undefined, and it
+returned -1 every time. Every restate would have reported `updated: 0` with no
+error, no exception and nothing in the log.
+
+The comment beside the call said "already in this file", which was true of the
+NAME and false of the signature. That is the tell: I asserted verification I had
+not done, in a file I cannot read, because the Apps Script lives in Notion and
+not in this repo.
+
+The same family as the four name collisions. Right about the identifier, wrong
+about the thing behind it.
+
+So: **when calling into the Apps Script, or anything else outside this repo,
+either quote the signature you are calling or say plainly at the call site that
+it is unverified.** A deliverable that cannot be run here gets a note saying
+which calls were checked against the real file and which were not. Silence reads
+as verified.
+
 ### The measuring tool is code in the page
 
 A probe injected into the running app obeys every rule the app obeys. A `var`
