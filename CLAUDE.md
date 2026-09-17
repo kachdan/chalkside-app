@@ -321,6 +321,18 @@ Three name collisions have shipped this way: `ordinal`, `batBall`, `ask`. Run
 `tools/check-names.sh` and `tools/check-syntax.sh` before any commit that adds
 a top level name.
 
+### The measuring tool is code in the page
+
+A probe injected into the running app obeys every rule the app obeys. A `var`
+at the top of a snippet is a global, and it will shadow one of ours: `var pad`
+in a probe shadowed the app's `pad()` zero-padding helper and took down
+`todayStr` and everything under it. The page looked broken and the page was
+fine.
+
+That is the fourth instance of the shadowing class after `ordinal`, `batBall`
+and `ask`, and the first caused by the instrument rather than found by it.
+**Wrap probes in an IIFE.**
+
 ### Two kinds of check, and neither substitutes for the other
 
 **Static tools catch ordering and name faults. The browser catches resolution

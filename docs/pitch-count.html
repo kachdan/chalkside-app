@@ -993,6 +993,8 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 
         <button class="btn primary wide" id="restoreBtn" style="margin-top:24px">Restore from sheet</button>
         <button class="btn wide" id="sendUnsentBtn" style="margin-top:8px">Send unsent</button>
+        <!-- CHALK-119. A one time pass over rows written before the fix. -->
+        <button class="btn wide" id="fixClearBtn" style="margin-top:8px">Fix clear dates in the sheet</button>
       </div>
 
       <div class="pad spane" data-pane="game">
@@ -1191,6 +1193,53 @@ function dayTotal(pid){
   if(S.game&&S.game.date===todayStr()&&S.game.pitcherId===pid) n+=S.game.count;
   return n;
 }
+/* CHALK-119, the one time correction pass. Rows written before this ticket
+   carry clear dates computed per ROW rather than per DAY, so any date with two
+   outings on it is wrong in the sheet right now.
+
+   The APP computes the corrections, not the Apps Script. Putting restDays and
+   eligibleDate into the script would be a second copy of the rules, and a
+   second copy is how CHALK-102 shipped three answers to one question. The
+   script only knows how to set a cell.
+
+   Reads the tab, groups by player and date, recomputes from the day total, and
+   sends only the pairs whose value is actually wrong. */
+function planClearFix(rows){
+  var day={}, order=[];
+  (rows||[]).forEach(function(r){
+    var name=String(sheetField(r,['name','player'])).trim();
+    var date=String(sheetField(r,['date'])).trim();
+    var pitches=parseInt(sheetField(r,['pitches']),10);
+    var clear=String(sheetField(r,['cleartopitch','clear'])).trim();
+    if(!name||!/^\d{4}-\d{2}-\d{2}$/.test(date)||isNaN(pitches)) return;
+    var k=name+'|'+date;
+    if(!day[k]){ day[k]={player:name,date:date,total:0,seen:[]}; order.push(k); }
+    day[k].total+=pitches;
+    day[k].seen.push(clear);
+  });
+  var fix=[],ok=0;
+  order.forEach(function(k){
+    var d=day[k];
+    var want=eligibleDate(d.date,d.total);
+    var wrong=d.seen.filter(function(c){ return c!==want; }).length;
+    if(wrong) fix.push({player:d.player,date:d.date,eligible:want,rows:wrong});
+    else ok+=d.seen.length;
+  });
+  return {days:order.length,fix:fix,alreadyRight:ok};
+}
+
+/* What the rows remaining for that player and date should now say.
+   Computed AFTER the local change so it reflects the new day total, and null
+   when nothing is left for that date, because then there is no row to correct. */
+function restateFor(o){
+  if(!o) return null;
+  var p=S.roster.filter(function(r){return r.id===o.pitcherId;})[0];
+  if(!p) return null;
+  var total=pitchesOn(o.pitcherId,o.date);
+  if(!total) return null;
+  return {player:p.name,date:o.date,eligible:eligibleDate(o.date,total)};
+}
+
 /* ---------------- CHALK-109, share availability ----------------
    After a game the staff settle the next game's plan over group text inside
    twenty minutes of the last out. The data is on one phone across two screens
@@ -1306,6 +1355,66 @@ function openShare(){
     }catch(e){ copyLabel(false); }
   });
 }
+/* CHALK-119. Shown before anything is written, and it says how many rows it
+   will touch. It rewrites one column and touches no ids, so it cannot break a
+   lookup, but it is still a write to the league record and Dan gets to see the
+   number first. */
+function openClearFix(){
+  if(!syncUrl()){ goSettings('sync'); el('syncFld').focus(); return; }
+  el('sheetInner').innerHTML='<h2 class="sheetTitle">Fix clear dates</h2>'+
+    '<div class="muted">Reading the Game Log\u2026</div>';
+  openSheet();
+  fetchSheetRows('Game Log').then(function(rows){
+    var plan=planClearFix(rows);
+    var rowsToFix=0;
+    plan.fix.forEach(function(f){ rowsToFix+=f.rows; });
+    var h='<h2 class="sheetTitle">Fix clear dates</h2>';
+    if(!plan.fix.length){
+      h+='<div class="muted">'+plan.days+' player-days in the sheet and every clear '+
+         'date already matches the day total. Nothing to change.</div>'+
+         '<button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
+      el('sheetInner').innerHTML=h; return;
+    }
+    h+='<div class="muted">Rows written before this fix worked the clear date out '+
+       'per outing instead of per day, so any date with two outings on it reads '+
+       'wrong. This corrects one column and touches nothing else.</div>'+
+       '<div class="prevrow" style="margin-top:10px"><span class="nm">Player-days checked</span>'+
+       '<span class="num">'+plan.days+'</span></div>'+
+       '<div class="prevrow"><span class="nm">Already right</span><span class="num">'+plan.alreadyRight+'</span></div>'+
+       '<div class="prevrow"><span class="nm"><b>Rows to correct</b></span><span class="num"><b>'+rowsToFix+'</b></span></div>'+
+       '<div class="prevbad">'+plan.fix.map(function(f){
+         return '<div class="line">'+esc(f.player+'  '+pretty(f.date)+'  \u2192  '+pretty(f.eligible))+'</div>';
+       }).join('')+'</div>'+
+       '<button class="btn primary wide" style="margin-top:14px" id="clearFixGo">Correct '+rowsToFix+' row'+(rowsToFix===1?'':'s')+'</button>'+
+       '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>';
+    el('sheetInner').innerHTML=h;
+    el('clearFixGo').addEventListener('click',function(){
+      var body={action:'restateClear',sheet:'Game Log',
+                entries:plan.fix.map(function(f){ return {player:f.player,date:f.date,eligible:f.eligible}; })};
+      el('sheetInner').innerHTML='<h2 class="sheetTitle">Fix clear dates</h2><div class="muted">Writing\u2026</div>';
+      fetch(syncUrl(),{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+                       body:JSON.stringify(body)})
+        .then(function(r){ if(!r.ok) throw new Error('status'); return r.json(); })
+        .then(function(d){
+          el('sheetInner').innerHTML='<h2 class="sheetTitle">Fix clear dates</h2>'+
+            '<div class="muted">Corrected '+((d&&d.updated)||0)+' row'+(((d&&d.updated)||0)===1?'':'s')+
+            '. Run it again any time; it only writes what is wrong.</div>'+
+            '<button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
+        })
+        .catch(function(){
+          el('sheetInner').innerHTML='<h2 class="sheetTitle">Fix clear dates</h2>'+
+            '<div class="muted">Could not write to the sheet. Nothing was changed, '+
+            'and the app is unaffected either way.</div>'+
+            '<button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
+        });
+    });
+  }).catch(function(){
+    el('sheetInner').innerHTML='<h2 class="sheetTitle">Fix clear dates</h2>'+
+      '<div class="muted">Could not read the sheet. Check Sheet setup under Sync.</div>'+
+      '<button class="btn wide" style="margin-top:14px" data-close="1">Close</button>';
+  });
+}
+
 /* ---------------- CHALK-117, the schedule ----------------
    The app answers "clear Sep 18". What a coach needs, standing on a field, is
    whether that is before or after the next game. Same fact, different answer.
@@ -2420,12 +2529,21 @@ function pendingDeletes(){
 function setPendingDeletes(a){
   try{ localStorage.setItem(DELQ_KEY,JSON.stringify(a||[])); }catch(e){}
 }
-function queueDelete(id){
+/* CHALK-119. An entry is {id, restate} now, where restate is the corrected
+   clear date for whatever rows remain for that player on that date. It used to
+   be a bare id string and old queues still hold those, so both shapes are read.
+   Without this a delete made offline would be retried later and leave the
+   sheet's clear date stale, which is the case the ticket says gets missed. */
+function delId(x){ return (x&&typeof x==='object')?x.id:x; }
+function queueDelete(id,restate){
   var q=pendingDeletes();
-  if(q.indexOf(id)===-1){ q.push(id); setPendingDeletes(q); }
+  for(var i=0;i<q.length;i++){
+    if(delId(q[i])===id){ q[i]={id:id,restate:restate||null}; setPendingDeletes(q); return; }
+  }
+  q.push({id:id,restate:restate||null}); setPendingDeletes(q);
 }
 function unqueueDelete(id){
-  setPendingDeletes(pendingDeletes().filter(function(x){ return x!==id; }));
+  setPendingDeletes(pendingDeletes().filter(function(x){ return delId(x)!==id; }));
 }
 
 /* ---------------- CHALK-125, the roster in the sheet ----------------
@@ -2493,11 +2611,20 @@ function pushRoster(){
   }catch(e){}
 }
 
-function pushDelete(id){
-  queueDelete(id);
+/* CHALK-119. The sheet is the league record and a human other than Dan may
+   read it, so the clear date has to be RIGHT rather than merely present. A
+   second outing on the same date changes the DAY total, which makes every
+   earlier row for that date stale by definition, and a deletion changes it back.
+
+   restate says: for this player on this date, the clear date is now X, put it
+   on every matching row. The app never trusts the column back. Eligibility is
+   still recomputed locally and Restore still ignores it, and that separation is
+   the fix: the value stops being load bearing and becomes a report. */
+function pushDelete(id,restate){
+  queueDelete(id,restate);
   var url=syncUrl();
   if(!url) return;
-  var body={action:'delete',id:id,sheet:'Game Log'};
+  var body={action:'delete',id:id,sheet:'Game Log',restate:restate||null};
   try{
     fetch(url,{
       method:'POST',
@@ -2531,7 +2658,7 @@ function sendUnsent(){
     return;
   }
   pending.forEach(pushToSheet);
-  dels.forEach(pushDelete);
+  dels.forEach(function(d){ pushDelete(delId(d),(d&&typeof d==='object')?d.restate:null); });
   if(roster) pushRoster();
   var parts=[];
   if(pending.length) parts.push(pending.length+' outing'+(pending.length>1?'s':''));
@@ -2824,13 +2951,14 @@ el('s-log').addEventListener('click',function(e){
        yes:'Delete', danger:true},function(){ deleteOutingNow(id); });
 });
 function deleteOutingNow(id){
+  var gone=S.outings.filter(function(o){return o.id===id;})[0];
   S.outings=S.outings.filter(function(o){return o.id!==id;});
   save();
   /* sent for every delete, not only synced ones. An outing marked unsent may
      still have reached the sheet with only the response lost. An id the sheet
      never saw is a no-op: findRowById returns -1 and deleteGame returns ok
      without touching anything. */
-  pushDelete(id);
+  pushDelete(id,restateFor(gone));
   renderAll();
 }
 /* CHALK-117 setup. Paste the feed, refresh, and say plainly what the app now
@@ -2923,6 +3051,7 @@ el('sheet').addEventListener('click',function(e){
   openShare();
 });
 el('shareBtn').addEventListener('click',openShare);
+el('fixClearBtn').addEventListener('click',openClearFix);
 
 el('s-batting').addEventListener('click',function(e){
   var t=e.target.closest('[data-bat]'); if(!t) return;
@@ -3212,7 +3341,8 @@ function wipeNow(){
      with only the response lost, and a wipe that left those rows behind would
      recreate the divergence this exists to prevent. The queue lives under its
      own key, so the reset below cannot take it with it. */
-  S.outings.forEach(function(o){ pushDelete(o.id); });
+  /* everything goes, so there is no remaining row to correct */
+  S.outings.forEach(function(o){ pushDelete(o.id,null); });
   /* nothing reseeds a roster any more, so a wipe stays wiped. Settings >
      Roster is the way back. */
   S={roster:[],outings:[],game:null,opp:0}; save(); renderAll();
