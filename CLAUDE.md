@@ -297,7 +297,7 @@ input.** Write the check, break the file on purpose, watch the check go red,
 fix the file, watch it go green. Only then does it count. A check that has only
 ever passed is an assertion about the world, not a test of it.
 
-This is the standing rule because five verifications have now gone green while
+This is the standing rule because seven verifications have now gone green while
 looking at the wrong thing:
 
 | what was checked | what it was actually looking at |
@@ -307,10 +307,22 @@ looking at the wrong thing:
 | a computed style | the previous frame, and later the previous screen's classes |
 | `node --check` on the app | block 0, a 743 byte theme script, not the 89KB app |
 | duplicate global names | only `^function name`, so `var x = function(){}` was invisible |
+| every inline block, said `check-syntax.sh` | nothing. It extracted the blocks, printed how many, and never ran `node --check` |
+| the app, in the browser | the cached build. The service worker answers EVERY navigation with the cached app, whatever the URL |
 
-The last one let `var ask = function(){}` in the wake lock block overwrite
-CHALK-130's `ask()` dialog at load. Every confirmation in the app silently
-became a wake lock request that opened nothing.
+The duplicate-names row let `var ask = function(){}` in the wake lock block
+overwrite CHALK-130's `ask()` dialog at load. Every confirmation in the app
+silently became a wake lock request that opened nothing.
+
+`tools/check-syntax.sh` is on that list twice, which is the part to sit with. It
+first checked only block 0, and after that was fixed it stopped running
+`node --check` at all. A tool that has been the fault once gets re-read before
+it is trusted again, not just re-run. It now fails if no block over 10KB was
+seen, because "three blocks checked, all green" was true and useless while the
+112KB of app code went untouched.
+
+The last row is the first one caused by the app rather than the tooling, and it
+is now CHALK-139.
 
 `tools/check-names.sh` went through two wrong versions. The second tried to
 track brace depth across 89KB, drifted, and **passed a file with the bug
@@ -341,6 +353,23 @@ either quote the signature you are calling or say plainly at the call site that
 it is unverified.** A deliverable that cannot be run here gets a note saying
 which calls were checked against the real file and which were not. Silence reads
 as verified.
+
+### A test double's signature is copied from the real one, never recalled
+
+The same `findRowById` bug turned up a second time, in the mock. `t119b` stubs
+it as `findRowById(id)` while the real one is `(sheet, id)`, so once the
+deliverable was corrected the stub returned -1 for every lookup and **eight
+assertions failed against correct code**.
+
+Both directions are bad. A double that is wrong in the same way as the thing it
+replaces cannot catch that bug, which is the whole reason it exists. And when
+the real code gets fixed, the stale double makes it look broken, which costs an
+afternoon chasing a regression that is not there.
+
+So a stub's signature is **copied from the real function, not remembered**, and
+when the real function cannot be read from here, the stub carries a comment
+saying so, same as any other call. When a suite fails, check whether the double
+or the code is the thing that moved before touching the code.
 
 ### The measuring tool is code in the page
 
