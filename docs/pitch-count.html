@@ -366,8 +366,8 @@ input,select{
 .taphint{font-size:13.5px;color:var(--text-secondary);margin-top:14px;}
 
 /* rest-cost ribbon: the signature element */
-.ribbon{padding:0 16px 4px;}
-.ribbon .bars{display:flex;gap:3px;height:16px;}
+.ribbon{padding:16px 16px 0;}
+.ribbon .bars{display:flex;gap:4px;height:16px;}
 .ribbon .band{
   flex:1;position:relative;overflow:hidden;
   border-radius:4px;background:transparent;
@@ -420,7 +420,9 @@ input,select{
 .verdict.caution{color:var(--status-caution);}
 .verdict.stop{color:var(--status-stop);}
 
-.controls{display:flex;gap:10px;padding:0 16px 12px;}
+/* CHALK-145. Bottom padding up, the two buttons were sitting too close to the
+   raised FAB. It was 12 here, not the 14 the ticket says. */
+.controls{display:flex;gap:10px;padding:0 16px 24px;}
 /* the two that are left share the row rather than leaving Undo's gap behind */
 .controls .btn{flex:1;}
 
@@ -476,11 +478,14 @@ nav button.fab{
      move is --border-strong on the hairline, not a brighter fill. */
   background:var(--surface-raised);
   border:1px solid var(--border-rule);
-  /* the baseball stays brand blue, never grey. It is the app's own mark, not a
-     state indicator, and greying it would read as the feature being
-     unavailable. What changes between states is the emphasis of the container,
-     not the identity of the thing. */
-  color:var(--brand-primary);
+  /* CHALK-145. This used to be brand blue, argued as "the app's own mark, not a
+     state indicator". Dan overruled it and he is right: sitting on any other
+     tab, the blue baseball and the blue active label meant TWO things on the bar
+     read as active at once. Identity is worth less than knowing where you are.
+
+     Inactive is therefore the same grey as Team, Log, Batting and Settings when
+     off. The ACTIVE fab is untouched: brand fill, white baseball. */
+  color:var(--text-secondary);
   box-shadow:0 4px 12px rgba(22,24,26,.22);
 }
 /* 40 in a 72 circle. It was 32; Dan set 40 in Figma and called it final. */
@@ -721,6 +726,13 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 .pips i.f1{background:var(--status-caution);}
 .pips i.f2{background:var(--status-caution-strong);}
 .pips i.f3{background:var(--status-stop);}
+/* CHALK-145 found that f3 NEVER RENDERS for strike or out, and neither does a
+   digit of 3. addStrike takes the third strike straight to 0 and adds an out;
+   addOut takes the third out straight to 0 and ends the half. The displayed
+   range is 0 to 2, the third pip never lights, and ball 4 behaves the same way.
+   So CHALK-111's stop-red third pip has never been on screen either. Colouring
+   a terminal step needs the terminal step to be shown first, which is a
+   behaviour change and Dan's call. Do not add styling for it until then. */
 
 /* CHALK-111. The tray offers, it does not move him. Everything behind drops so
    Go to count is the only primary on screen. */
@@ -963,11 +975,10 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
       </button>
       <hr class="rule">
 
-      <button class="tapzone" id="tapzone">
-        <div class="count safe" id="countNum">0</div>
-        <div class="taphint" id="tapHint">Tap anywhere to add a pitch</div>
-      </button>
-
+      <!-- CHALK-145. ABOVE the tap zone, not below it. His thumb is on the tap
+           zone all game, so the gauge used to sit under his own hand. The
+           verdict SENTENCE stays below: the ribbon is a glance, the sentence is
+           a read, and they are separated on purpose. -->
       <div class="ribbon">
         <div class="bars">
           <div class="band" data-d="0"><i id="band0"></i></div>
@@ -977,6 +988,11 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
         </div>
         <div class="ticks"><span>0 rest</span><span>1 day</span><span>2 days</span><span>3 days</span></div>
       </div>
+
+      <button class="tapzone" id="tapzone">
+        <div class="count safe" id="countNum">0</div>
+        <div class="taphint" id="tapHint">Tap anywhere to add a pitch</div>
+      </button>
 
       <div class="verdict" id="verdict"></div>
 
