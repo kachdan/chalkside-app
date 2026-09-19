@@ -339,9 +339,11 @@ input,select{
 }
 
 .tapzone{
-  /* stretches to fill the column as it always did. The 32px is margin, so it
-     opens a gap above and below without eating into the zone's own height. */
-  flex:1;min-height:0;margin:32px 0;
+  /* stretches to fill the column as it always did. The margin is margin, so it
+     opens a gap above and below without eating into the zone's own height.
+     CHALK-146: 16, not 32. Dan's frame says 16 and the 32 was stacking with the
+     verdict's reserved box into a 47px hole above the sentence. */
+  flex:1;min-height:0;margin:16px 0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   background:var(--surface-raised);border:0;border-radius:16px;width:100%;padding:0;
   position:relative;
@@ -405,14 +407,21 @@ input,select{
   margin-top:4px;font-variant-numeric:tabular-nums;
 }
 .verdict{
-  /* One line at every count, with the height reserved, so nothing below it
-     moves as the number climbs. The size is capped against the longest
-     string this can produce, see renderCount. */
-  /* Centred with line-height, NOT display:flex. Flex makes the text runs
-     either side of the <b> into separate items and drops the space between
-     them, which read as "rest,9 more". */
-  height:48px;line-height:48px;
-  padding:0 16px;overflow:hidden;
+  /* NOT display:flex. Flex makes the text runs either side of the <b> into
+     separate items and drops the space between them, which reads as
+     "rest,9 more". That is the one thing in here worth protecting.
+
+     CHALK-146 removed height:48px and line-height:48px. The comment claimed the
+     height was reserved so nothing below moved as the number climbs, and that
+     was over-engineering: white-space:nowrap and overflow:hidden below already
+     make it impossible for this line to wrap, so its height was stable without
+     the box. The 48 was only centring text in a box that did not need to exist,
+     and it was half of a 47px gap where Dan drew 16. Do not restore it on the
+     strength of the old comment.
+
+     The size is capped against the longest string this can produce, see
+     renderCount. */
+  padding:0 16px 16px;overflow:hidden;
   white-space:nowrap;
   font-size:clamp(12px,3.9vw,16px);font-weight:500;
 }
