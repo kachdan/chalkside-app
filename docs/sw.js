@@ -6,7 +6,7 @@
    successful push, which is indistinguishable from a deploy that failed. On
    Pages there is no build log to check, so the only symptom is a coach saying
    the app did not change. */
-var VERSION = 5;
+var VERSION = 6;
 var CACHE = 'chalkside-v' + VERSION;
 
 /* ChalkSide service worker.
@@ -40,7 +40,10 @@ var SHELL = [
   './favicon.png',
   './apple-touch-icon.png',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  /* CHALK-144. Android reads these for the adaptive icon. */
+  './icon-maskable-192.png',
+  './icon-maskable-512.png'
 ];
 
 var FONT_CSS = 'https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,400;0,500;0,600;0,700;1,200&display=swap';
