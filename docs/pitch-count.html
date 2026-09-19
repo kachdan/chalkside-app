@@ -731,17 +731,37 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 .pips{display:flex;gap:6px;margin-top:var(--space-12);}
 .pips i{display:block;width:9px;height:9px;border-radius:50%;background:var(--border-rule);}
 .tile.info .pips i{width:8px;height:8px;}
+/* CHALK-145. The ramp is shifted DOWN one step, because the top of it was never
+   on screen. Three strikes clears the count and adds the out in the same action,
+   so strike 3 is a state the app passes through and never renders: the visible
+   range is 0, 1, 2, and f3 only ever existed on paper. The original ramp spent
+   its first step on caution, which meant the two states a coach actually sees
+   were the two mildest colours in it.
+
+   Shifted, each visible step is one darker, and f3 is kept equal to f2 so the
+   unreachable step cannot look like a fourth colour if it is ever shown.
+
+   The DIGIT and the PIPS share these classes on purpose, so they are the same
+   token at every step. Two components, one class name, deliberately: the name
+   means "step N of this ramp", which is the same thing in both places.
+
+   It also fixes the contrast problem the old spec traded against. As a large
+   digit on the tile, caution measures 2.24:1 in Light against a 3:1 floor.
+   One step down clears it:
+
+       caution-strong as a digit   light 3.31   dark 5.94
+       stop as a digit             light 4.68   dark 4.31
+
+   Ball keeps f0 at every value and is never given a step class. More balls is
+   good for his batter, and a green ramp beside an amber-to-red one would read
+   as one scale. */
 .pips i.f0{background:var(--status-safe);}
-.pips i.f1{background:var(--status-caution);}
-.pips i.f2{background:var(--status-caution-strong);}
+.pips i.f1{background:var(--status-caution-strong);}
+.pips i.f2{background:var(--status-stop);}
 .pips i.f3{background:var(--status-stop);}
-/* CHALK-145 found that f3 NEVER RENDERS for strike or out, and neither does a
-   digit of 3. addStrike takes the third strike straight to 0 and adds an out;
-   addOut takes the third out straight to 0 and ends the half. The displayed
-   range is 0 to 2, the third pip never lights, and ball 4 behaves the same way.
-   So CHALK-111's stop-red third pip has never been on screen either. Colouring
-   a terminal step needs the terminal step to be shown first, which is a
-   behaviour change and Dan's call. Do not add styling for it until then. */
+.tile .tval.f1{color:var(--status-caution-strong);}
+.tile .tval.f2{color:var(--status-stop);}
+.tile .tval.f3{color:var(--status-stop);}
 
 /* CHALK-111. The tray offers, it does not move him. Everything behind drops so
    Go to count is the only primary on screen. */
@@ -2050,6 +2070,10 @@ function pipRow(host,n,max,kind){
   }
   host.innerHTML=h;
 }
+function stepDigit(node,n){
+  node.classList.remove('f1','f2','f3');
+  if(n>0) node.classList.add('f'+Math.min(3,n));
+}
 function renderBatting(){
   if(!el('batBall')) return;
   var c=bat();
@@ -2061,6 +2085,11 @@ function renderBatting(){
   pipRow(el('pipsBall'),c.b,4,'ball');
   pipRow(el('pipsStrike'),c.s,3,'strike');
   pipRow(el('pipsOut'),c.o,3,'out');
+  /* CHALK-145. The digit takes the same step class as the pips, so the two are
+     never a different colour. Strike and Out only: Ball and Inning never get
+     one. */
+  stepDigit(el('batStrike'),c.s);
+  stepDigit(el('batOut'),c.o);
   var u=el('batUndo');
   u.disabled=!lastBat;
   u.textContent=lastBat?('Undo '+lastBat.what):'Undo';

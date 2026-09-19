@@ -360,6 +360,32 @@ it is unverified.** A deliverable that cannot be run here gets a note saying
 which calls were checked against the real file and which were not. Silence reads
 as verified.
 
+### Specify visual states from what RENDERS, not from what a counter can hold
+
+CHALK-145 first specified the batting digit going red at strike 3 and out 3.
+Neither exists on screen. Three strikes clears the count and adds the out in the
+same action; three outs clears it and opens the tray. The visible range is 0, 1,
+2, and the state the spec was written for is one the app passes through inside
+the action that enters it.
+
+It had already happened once and nobody noticed: CHALK-111 specified a stop-red
+third pip, it was built, it was signed off, and it has never once been on
+screen. Two tickets specified the same invisible state because both counted to
+the counter's maximum instead of asking which values a coach actually sees.
+
+So, when a spec names a value:
+
+- **Drive the UI to it before styling it.** Tap to the state and read what is
+  rendered. Reading the reducer tells you what the number becomes, not what gets
+  painted; only one render happens and the terminal value is already gone.
+- **A ramp should be spent on the states that exist.** The original spent its
+  first step on caution, so the two states a coach sees were its two mildest
+  colours. Shifting it down one fixed that AND the contrast problem at once:
+  caution as a large digit is 2.24:1 in Light, caution-strong is 3.31.
+- **If a state cannot render, do not style it.** Say so and give the evidence.
+  Dead styling outlives the person who wrote it and gets rebuilt on the strength
+  of its own comment.
+
 ### Two correct features, added apart, on a path that runs both
 
 CHALK-142. Restore creates players from the Game Log, because an outing with no
