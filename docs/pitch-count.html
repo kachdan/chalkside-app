@@ -567,6 +567,11 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 .stateline .inn::after{
   content:'';position:absolute;inset:-6px -3px;
 }
+/* CHALK-141. When the half is unknown the glyph slot is EMPTY, and an empty
+   flex item still earns the 5px gap. :empty takes it out of layout entirely, so
+   an unknown half costs no width and the tag is the same size it was. */
+#inningHalf{display:flex;align-items:center;}
+#inningHalf:empty{display:none;}
 .stateline .inn:active{background:var(--brand-primary);color:var(--text-on-accent);}
 .stateline .belief{
   flex:0 1 auto;min-width:0;
@@ -989,11 +994,11 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
       <button class="stateline" id="catcherBtn" aria-label="Change the catcher">
         <span class="inn" id="inningBtn" role="button" tabindex="0"
               aria-label="Start the next inning">
-          <!-- CHALK-140. The triangle is gone. It always pointed up, it was
-               wired to nothing, and a fixed arrow reads as information while
-               being decoration. CHALK-141 brings one back meaning top versus
-               bottom, derived rather than drawn, and ABSENT when home and away
-               cannot be determined. Do not put a static one back. -->
+          <!-- CHALK-141. The triangle is back and now MEANS something: up is
+               the top of the inning, down is the bottom. Derived from the
+               schedule's vs and @, never entered, and EMPTY whenever the app
+               cannot be sure. Do not put a static one back. -->
+          <span id="inningHalf" aria-hidden="true"></span>
           <span id="inningNum">1st</span>
         </span>
         <span class="belief" id="beliefText"></span>
@@ -1527,6 +1532,46 @@ function opponentOn(date){
   if(!m) return String(hit.title).trim();
   var sep=/^@|at$/i.test(m[1])?'at':'vs';
   return sep+' '+m[2].trim();
+}
+
+/* CHALK-141. Home or away for a date, from the same titles opponentOn reads.
+   Away bats the TOP of every inning, home bats the BOTTOM.
+
+   Returns '' for every case that is not certain: no schedule connected, no game
+   that day, or a title with no vs and no @. '' means the app SAYS NOTHING. Dan
+   did not know the top and bottom rule until a player corrected him, so he will
+   trust whatever is on screen, and a wrong half is worse than no half. Do not
+   give this a default. */
+function homeAwayOn(date){
+  var hit=null;
+  schedule().forEach(function(e){
+    if(e.date===date&&e.kind==='game'&&!hit) hit=e;
+  });
+  if(!hit||!hit.title) return '';
+  var m=String(hit.title).match(/(?:^|\s)(vs\.?|@|at)\s+(.+)$/i);
+  if(!m) return '';
+  var sep=String(m[1]).replace(/\.$/,'').toLowerCase();
+  return (sep==='@'||sep==='at')?'away':'home';
+}
+
+/* Which half of the inning we are in NOW, as 'top', 'bottom', or '' when the
+   app cannot know. The tab IS the half, per CHALK-111: on the Batting tab we
+   are batting, anywhere else our pitcher is on the mound. */
+function currentHalf(){
+  var ha=homeAwayOn(S.game?S.game.date:todayStr());
+  if(!ha) return '';
+  var batting=!!(el('s-batting')&&el('s-batting').classList.contains('on'));
+  /* we bat the bottom when home, the top when away, and the other half is
+     theirs, which is when we are the ones pitching */
+  return (batting===(ha==='home'))?'bottom':'top';
+}
+
+/* The glyph, and nothing when the half is unknown. Up is top, down is bottom. */
+function halfGlyph(half){
+  if(half!=='top'&&half!=='bottom') return '';
+  var d=(half==='top')?'M12 5l7 12H5z':'M12 19l7-12H5z';
+  return '<svg viewBox="0 0 24 24" width="8" height="8" aria-hidden="true">'+
+         '<path d="'+d+'" fill="currentColor"/></svg>';
 }
 
 /* Every future game the schedule is sure about, soonest first. Ambiguous days
@@ -2081,7 +2126,13 @@ function renderBatting(){
   el('batStrike').textContent=c.s;
   el('batOut').textContent=c.o;
   el('batInning').textContent=currentInning();
-  el('batInningTitle').textContent=inningLabel(currentInning())+' inning';
+  /* CHALK-141. The same derivation on the batting side, where the half is the
+     other one: the tab IS the flip. Reads "Bottom of the 3rd" when it is known
+     and "3rd inning" when it is not. */
+  var bhalf=currentHalf();
+  el('batInningTitle').textContent=bhalf
+    ? ((bhalf==='top'?'Top':'Bottom')+' of the '+inningLabel(currentInning()))
+    : (inningLabel(currentInning())+' inning');
   pipRow(el('pipsBall'),c.b,4,'ball');
   pipRow(el('pipsStrike'),c.s,3,'strike');
   pipRow(el('pipsOut'),c.o,3,'out');
@@ -2226,6 +2277,15 @@ function shortName(id){
 function renderStateLine(){
   if(!el('inningNum')) return;
   el('inningNum').textContent=inningLabel(currentInning());
+  /* CHALK-141. Empty string when the half is unknown, which removes the glyph
+     rather than hiding it, so nothing is left occupying space. */
+  var half=currentHalf();
+  el('inningHalf').innerHTML=halfGlyph(half);
+  /* the action label keeps saying what the tap does; the half is added in
+     front of it so it is not lost to anyone using a screen reader */
+  el('inningBtn').setAttribute('aria-label',
+    (half?(half==='top'?'Top':'Bottom')+' of the '+inningLabel(currentInning())+'. ':'')+
+    'Start the next inning');
   var a=thisInning()||{};
   var pn=shortName(a.p||S.game&&S.game.pitcherId);
   var cn=shortName(a.c);
