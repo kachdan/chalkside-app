@@ -2569,7 +2569,12 @@ function ask(o,onYes){
   el('sheetInner').innerHTML=
     '<h2 class="sheetTitle">'+esc(o.title)+'</h2>'+
     '<div class="muted">'+esc(o.body)+'</div>'+
-    '<button class="btn '+(o.danger?'danger':'primary')+' wide" style="margin-top:14px" id="askYes">'+
+    /* CHALK-146. dangerPrimary is Primary + Danger: a filled red button, for a
+       tray whose confirm DELETES RECORDS rather than just ending something
+       local. Plain danger stays Secondary + Danger, which is what every other
+       tray uses. */
+    '<button class="btn '+(o.dangerPrimary?'primary danger':(o.danger?'danger':'primary'))+
+      ' wide" style="margin-top:14px" id="askYes">'+
       esc(o.yes)+'</button>'+
     '<button class="btn wide" style="margin-top:8px" data-close="1">'+esc(o.no||'Cancel')+'</button>';
   openSheet();
@@ -3086,6 +3091,31 @@ function unqueueDelete(id){
    loses nothing because the roster is still on the device. */
 var ROSTER_SAVED_KEY='chalkside_roster_saved_v1';
 
+/* CHALK-146. Who THIS DEVICE removed on purpose since its last successful
+   roster write. A player taken off through the Remove tray has already been
+   confirmed once; asking again when the write goes out would be two
+   confirmations for one decision.
+
+   Normalised names, the same key CHALK-142 settled on, because a removed player
+   takes his id with him and the sheet has never seen our ids anyway. */
+var ROSTER_REMOVED_KEY='chalkside_removed_here_v1';
+function removedHere(){
+  try{
+    var v=JSON.parse(localStorage.getItem(ROSTER_REMOVED_KEY)||'[]');
+    return Object.prototype.toString.call(v)==='[object Array]'?v:[];
+  }catch(e){ return []; }
+}
+function noteRemovedHere(name){
+  var k=normName(name);
+  if(!k) return;
+  var list=removedHere();
+  if(list.indexOf(k)<0){ list.push(k); }
+  try{ localStorage.setItem(ROSTER_REMOVED_KEY,JSON.stringify(list)); }catch(e){}
+}
+function clearRemovedHere(){
+  try{ localStorage.removeItem(ROSTER_REMOVED_KEY); }catch(e){}
+}
+
 /* The roster holds one name; the sheet holds two columns so a human can sort
    it. First token is the first name, everything after it is the last name, so
    "Alpha Van Der Berg" survives the round trip intact. */
@@ -3114,27 +3144,119 @@ function rosterIsSaved(){
 }
 function markRosterSaved(){
   try{ localStorage.setItem(ROSTER_SAVED_KEY,rosterFingerprint()); }catch(e){}
+  /* CHALK-146. The ledger covers the gap between removing someone here and the
+     sheet agreeing. Once the sheet agrees there is nothing left to excuse, so
+     it empties, and only on a CONFIRMED write. */
+  clearRemovedHere();
 }
 
-/* Written when the roster changes, not on every app open. Fire and forget:
-   nothing local depends on it and a failure is recoverable by changing
-   anything, or by Send unsent. */
+/* CHALK-146. The write REPLACES the Roster tab: chalksideWriteRoster clears it
+   and writes what it is given. The read path merges. That asymmetry is the bug:
+   whichever device syncs last wins, so a device holding fewer players silently
+   wiped the sheet, which is exactly what a test device did on 18 Sep.
+
+   The fix is not to make the write merge. The sheet has to be able to lose a
+   player, or removing one would never take. The fix is that a SHRINKING write
+   is confirmed and a growing one is not.
+
+   Diffed BY NAME, never by count: a device can hold eleven players and be the
+   wrong eleven. */
+function rosterWriteBody(){
+  return {action:'roster',sheet:'Roster',team:teamName(),
+          players:S.roster.map(function(p){
+            var n=splitName(p.name);
+            /* jersey as a string, every time. A number here is how 01 became
+               1 on the restore path once already. */
+            return {jersey:String(p.number==null?'':p.number),first:n.first,last:n.last};
+          })};
+}
+
+/* The write itself, once something has decided it is allowed. */
+function sendRoster(){
+  var url=syncUrl();
+  if(!url) return;
+  try{
+    fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+               body:JSON.stringify(rosterWriteBody())})
+      .then(function(r){
+        if(!r.ok) throw new Error('bad status');
+        return r.text().catch(function(){ return ''; });
+      })
+      .then(function(t){
+        /* CHALK-146. The script's own guard REFUSES with HTTP 200 and ok:false,
+           so the status alone would mark a refused write as saved and the app
+           would stop offering to retry. An unreadable body falls back to the
+           old behaviour, trusting the status, so this can only ever be more
+           correct than before and never less. */
+        if(t&&/"ok"\s*:\s*false/.test(t)) return;
+        markRosterSaved(); renderHeaders();
+      })
+      .catch(function(){});
+  }catch(e){}
+}
+
+/* Who the sheet has that this device does not, split by whether this device
+   meant it. Names, normalised, per CHALK-142. */
+function rosterShrink(sheetRows){
+  var here={};
+  S.roster.forEach(function(p){ here[normName(p.name)]=true; });
+  var removed=removedHere(), accidental=[], deliberate=[], seen={};
+  (sheetRows||[]).forEach(function(r){
+    var first=String(sheetField(r,['first','firstname'])).trim();
+    var last=String(sheetField(r,['last','lastname','surname'])).trim();
+    var name=joinName(first,last)||String(sheetField(r,['name','player'])).trim();
+    if(!name) return;
+    var key=normName(name);
+    if(seen[key]||here[key]) return;
+    seen[key]=true;
+    if(removed.indexOf(key)>-1) deliberate.push(name);
+    else accidental.push(name);
+  });
+  return {accidental:accidental,deliberate:deliberate};
+}
+
+/* "Firstname, Firstname and 5 more". Naming them is the point: "2 players" is not
+   enough for a coach to spot which mistake he is looking at. */
+function nameList(names,shown){
+  shown=shown||2;
+  if(names.length<=shown+1) {
+    if(names.length===1) return names[0];
+    return names.slice(0,-1).join(', ')+' and '+names[names.length-1];
+  }
+  return names.slice(0,shown).join(', ')+' and '+(names.length-shown)+' more';
+}
+
+/* Written when the roster changes, not on every app open. The WRITE is still
+   fire and forget; the decision in front of it is not. */
 function pushRoster(){
   var url=syncUrl();
   if(!url) return;
-  var body={action:'roster',sheet:'Roster',team:teamName(),
-            players:S.roster.map(function(p){
-              var n=splitName(p.name);
-              /* jersey as a string, every time. A number here is how 01 became
-                 1 on the restore path once already. */
-              return {jersey:String(p.number==null?'':p.number),first:n.first,last:n.last};
-            })};
-  try{
-    fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-               body:JSON.stringify(body)})
-      .then(function(r){ if(!r.ok) throw new Error('bad status'); markRosterSaved(); renderHeaders(); })
-      .catch(function(){});
-  }catch(e){}
+
+  /* CHALK-146. An empty local roster NEVER writes, tray or no tray. A fresh
+     device holds nothing until it restores, and that nothing is not an opinion
+     about the sheet. This is the one case with no way back: there would be
+     nobody left to name in a tray. */
+  if(!S.roster.length) return;
+
+  /* Read before replacing. A failed read must not become a silent write, so the
+     catch does nothing rather than falling through to send. */
+  fetchSheetRows('Roster').then(function(rows){
+    var d=rosterShrink(rows);
+    if(!d.accidental.length){ sendRoster(); return; }
+    /* The title carries the consequence, the body names EVERY one of them. A
+       count is not enough for a coach to recognise which mistake he is looking
+       at, and the title cannot hold eleven names. */
+    ask({title:'This would remove '+nameList(d.accidental)+' from your sheet',
+         body:d.accidental.join(', ')+
+              (d.accidental.length>1?' are':' is')+' in the sheet and not on this '+
+              'device, and '+(d.accidental.length>1?'they were':'he was')+
+              ' not removed here. Another phone may have added '+
+              (d.accidental.length>1?'them':'him')+'. Keeping '+
+              (d.accidental.length>1?'them':'him')+' leaves the sheet alone; this '+
+              'device is unchanged either way.',
+         yes:'Remove', no:'Keep them', dangerPrimary:true},
+        function(){ sendRoster(); });
+  }).catch(function(){});
 }
 
 /* CHALK-119. The sheet is the league record and a human other than Dan may
@@ -3178,7 +3300,9 @@ function sendUnsent(){
   var dels=pendingDeletes();
   /* CHALK-125. A roster write that failed is not lost data, the roster is still
      here, but the sheet copy is stale and this is the retry. */
-  var roster=!rosterIsSaved();
+  /* CHALK-146. An empty roster never writes, so it must not be announced as
+     on its way either. */
+  var roster=!rosterIsSaved()&&S.roster.length>0;
   if(!pending.length&&!dels.length&&!roster){
     say('Nothing to send','Every outing, delete and the roster are already in the sheet.');
     return;
@@ -3191,7 +3315,8 @@ function sendUnsent(){
   if(dels.length) parts.push(dels.length+' delete'+(dels.length>1?'s':''));
   if(roster) parts.push('the roster');
   say('Sending','On its way: '+parts.join(' and ')+
-      '. The Log says "In the sheet" against each row once it lands.');
+      '. The Log says "In the sheet" against each row once it lands.'+
+      (roster?' If the roster would remove anyone from the sheet, you will be asked first.':''));
 }
 
 /* Counts, not a wall of rows. The only names shown are players who would be
@@ -3891,6 +4016,8 @@ el('rosterList').addEventListener('click',function(e){
        body:'He comes off the roster'+(syncUrl()?', here and in the sheet':'')+
             '. Everything he has already pitched stays in the log.',
        yes:'Remove', danger:true},function(){
+    /* CHALK-146. He said so here, so the sync must not ask a second time. */
+    noteRemovedHere(who);
     S.roster=S.roster.filter(function(p){return p.id!==id;});
     if(S.game&&S.game.pitcherId===id) S.game.pitcherId=null;
     save(); pushRoster(); renderAll();
