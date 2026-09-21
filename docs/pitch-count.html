@@ -130,6 +130,24 @@
   --space-40:40px; --space-48:48px;
   --size-tap-sm:40px; --size-tap-md:44px; --size-tap-lg:48px; --size-tap-xl:52px;
   --stroke-hairline:1px; --stroke-indicator:2px;
+
+  /* CHALK-147. Motion. The seven transitions in this file used seven durations
+     between 70 and 220ms; nobody chose that, it accumulated. These four steps
+     are the whole vocabulary.
+
+     The rule the scale serves: MOTION CONFIRMS, IT NEVER DELAYS. If an
+     animation is still running when the coach taps again, the tap lands
+     anyway. Nothing on the tap path is slower than instant. */
+  --motion-instant:80ms;    /* press feedback, anything on the tap path */
+  --motion-fast:140ms;      /* colour and state changes */
+  --motion-base:220ms;      /* something moving across the screen */
+  --motion-slow:300ms;      /* screens and backdrops */
+
+  /* arrivals decelerate and are slightly slower than departures, which
+     accelerate away */
+  --ease-standard:cubic-bezier(.4,0,.2,1);
+  --ease-enter:cubic-bezier(0,0,.2,1);
+  --ease-exit:cubic-bezier(.4,0,1,1);
 }
 
 /* CHALK-126. Dark is a privacy control before it is a display setting: a white
@@ -348,19 +366,20 @@ input,select{
   background:var(--surface-raised);border:0;border-radius:16px;width:100%;padding:0;
   position:relative;
   /* slower on the way out so the release is visible after the thumb lifts */
-  transition:background .18s ease;
+  transition:background var(--motion-fast) var(--ease-exit);
 }
 .tapzone:active{
   background:var(--surface-tap);
   /* fast on the way in, a pitch should register instantly */
-  transition:background .08s ease;
+  transition:background var(--motion-instant) var(--ease-standard);
 }
 .tapzone:active .count{transform:scale(.94);}
 .count{
   font-family:inherit;font-weight:600;
   font-size:clamp(120px,42vw,220px);line-height:.82;
   font-variant-numeric:tabular-nums;letter-spacing:-.02em;
-  transition:transform .07s ease, color .2s ease;
+  transition:transform var(--motion-instant) var(--ease-standard),
+              color var(--motion-fast) var(--ease-standard);
 }
 .count.safe{color:var(--text-count);}
 .count.caution{color:var(--status-caution);}
@@ -399,7 +418,7 @@ input,select{
 .ribbon .band i{
   display:block;height:100%;width:0%;
   background:var(--fill);position:relative;
-  transition:width .18s ease;
+  transition:width var(--motion-base) var(--ease-standard);
 }
 .ribbon .ticks{
   display:flex;justify-content:space-between;
@@ -452,7 +471,12 @@ nav button{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   padding:8px 2px;min-height:58px;
   font-size:11.5px;letter-spacing:.01em;color:var(--text-secondary);font-weight:500;
-  transition:background .12s ease,color .12s ease;
+  /* CHALK-147 item 2. border-color joins these so the fab EASES between
+     inactive and active, which is the signal he is back on the pitching
+     screen. It was the one part of that change that snapped. */
+  transition:background var(--motion-fast) var(--ease-standard),
+              color var(--motion-fast) var(--ease-standard),
+              border-color var(--motion-fast) var(--ease-standard);
 }
 nav button svg{width:23px;height:23px;stroke:currentColor;stroke-width:2;fill:none;
   stroke-linecap:round;stroke-linejoin:round;}
@@ -906,7 +930,7 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
   max-height:82vh;                  /* never reaches the top, content stays visible behind */
   display:flex;flex-direction:column;
   box-shadow:0 -8px 28px rgba(22,24,26,.22);
-  transition:transform .22s ease;
+  transition:transform var(--motion-base) var(--ease-enter);
 }
 .sheet .grab{flex:0 0 auto;display:flex;justify-content:center;padding:10px 0 6px;}
 .sheet .grab i{width:40px;height:5px;border-radius:999px;background:var(--border-rule);display:block;}
@@ -958,13 +982,62 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 }
 .pickhead:active{background:var(--surface-tap);}
 /* height is set in px by the script, since auto cannot be transitioned */
-.pickexpand{height:0;overflow:hidden;transition:height .16s ease;}
+.pickexpand{height:0;overflow:hidden;transition:height var(--motion-fast) var(--ease-standard);}
 .pickexpand-in{padding:0 14px 14px;}
 /* 24px clear of the row header above it, and the 14px here plus the row's own
    10px margin keeps it 24px clear of the next row below */
 .pickexpand-in .btn{margin-top:24px;}
 
-@media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+/* CHALK-147 item 1. Screen switches. The most frequent jar in the app: five
+   screens that swapped with no transition at all.
+
+   The incoming screen eases in, six pixels and a fade. NOT a slide, which would
+   imply the screens sit side by side and they do not. The outgoing one is
+   display:none the moment the class moves, so nothing overlaps and no layout is
+   duplicated. Going display:none to display:flex restarts a CSS animation by
+   itself, which is what makes this one declaration enough.
+
+   body.ready gates it so NOTHING animates on first paint. */
+@keyframes screenIn{
+  from{opacity:0;transform:translateY(6px);}
+  to{opacity:1;transform:none;}
+}
+body.ready .screen.on{animation:screenIn var(--motion-base) var(--ease-enter);}
+
+/* CHALK-147 item 3. The batting tiles bump on tap exactly as .count does. Same
+   interaction, two behaviours until now. Item 5 rides along: the CHALK-145
+   colour change eases instead of flicking. */
+.tile .tval{
+  transition:transform var(--motion-instant) var(--ease-standard),
+              color var(--motion-fast) var(--ease-standard);
+}
+.tile:active .tval{transform:scale(.94);}
+
+/* CHALK-147 item 4. A pip scales in from its centre rather than swapping
+   colour. Only the pip that just filled carries .pop: the row is rebuilt on
+   every render, so animating every filled pip would replay the whole row on
+   each tap. */
+@keyframes pipIn{
+  from{transform:scale(.2);opacity:.3;}
+  to{transform:scale(1);opacity:1;}
+}
+.pips i.pop{animation:pipIn var(--motion-fast) var(--ease-enter);}
+
+/* CHALK-147 item 6. The verdict confirms a change without delaying it. The new
+   sentence is in the DOM and fully legible before this starts: it fades UP from
+   .35, never out and in, because the verdict is a rule answer and a rule answer
+   is never withheld for a frame. */
+@keyframes verdictIn{ from{opacity:.35;} to{opacity:1;} }
+.verdict.changed{animation:verdictIn var(--motion-fast) var(--ease-enter);}
+
+/* Reduced motion. Crossfades may stay; anything that MOVES does not. */
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;}
+  body.ready .screen.on{animation:none!important;}
+  .pips i.pop{animation:none!important;}
+  .tapzone:active .count,.tile:active .tval{transform:none!important;}
+  /* .verdict.changed is opacity only, so it stays */
+}
 </style>
 </head>
 <body>
@@ -2110,7 +2183,14 @@ function pipRow(host,n,max,kind){
   var h='';
   for(var i=0;i<max;i++){
     var cls='';
-    if(i<n) cls=(kind==='ball')?' class="f0"':' class="f'+(i+1)+'"';
+    if(i<n){
+      cls=(kind==='ball')?'f0':'f'+(i+1);
+      /* CHALK-147 item 4. Only the topmost filled pip animates. The row is
+         rebuilt every render, so marking them all would replay the whole row
+         on every tap instead of showing the one that just arrived. */
+      if(i===n-1) cls+=' pop';
+      cls=' class="'+cls+'"';
+    }
     h+='<i'+cls+'></i>';
   }
   host.innerHTML=h;
@@ -2327,6 +2407,14 @@ function renderCount(){
   }
 
   var v=el('verdict');
+  /* CHALK-147 item 6. The THRESHOLD this sentence is reporting, not the
+     sentence. The text carries a countdown that ticks on every single pitch,
+     so keying the fade on the text fired it on every tap, on the busiest path
+     in the app. Measured, not assumed: two consecutive pitches changed it.
+
+     The threshold is the rest bracket plus the severity, which is exactly what
+     moves when the answer moves. */
+  var verdictWas=v.getAttribute('data-threshold')||'';
   v.className='verdict';
 
   if(day>=MAX){
@@ -2345,6 +2433,18 @@ function renderCount(){
       (next===null?'he is done for the game':'it costs a '+ordinal(next)+' rest day');
   }
   el('tapHint').textContent=day>=MAX?'Tell the head coach now':'Tap anywhere to add a pitch';
+
+  /* CHALK-147 item 6. The sentence is already written and readable by now; this
+     only confirms that it moved. Restarting a CSS animation needs the class
+     off, a reflow, then on. Empty previous value means first render, which
+     never animates. */
+  var threshold=(day>=MAX?'max':restDays(day)+'/'+v.className);
+  v.setAttribute('data-threshold',threshold);
+  if(threshold!==verdictWas&&verdictWas!==''){
+    v.classList.remove('changed');
+    void v.offsetWidth;
+    v.classList.add('changed');
+  }
 }
 function ordinal(n){return n===1?'1st':n===2?'2nd':'3rd';}
 
@@ -3951,6 +4051,13 @@ if(S.game&&!S.game.innings){
 
 rolloverIfNewDay();
 renderAll();
+
+/* CHALK-147. Nothing animates on first paint. The screen that is already on at
+   load must not ease in, so the gate goes on one frame AFTER the first render:
+   two rAFs, because one still lands inside the frame being painted. */
+requestAnimationFrame(function(){
+  requestAnimationFrame(function(){ document.body.classList.add('ready'); });
+});
 
 /* keep the screen awake while counting */
 if('wakeLock' in navigator){
