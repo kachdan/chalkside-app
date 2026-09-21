@@ -48,6 +48,18 @@ var SHELL = [
 
 var FONT_CSS = 'https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,400;0,500;0,600;0,700;1,200&display=swap';
 
+/* CHALK-139. Is this URL the app itself? Compared on the resolved PATHNAME, so
+   a query string or a hash still counts as the app, and nothing else does.
+   Resolved against the worker's own scope rather than hardcoded, so it keeps
+   working if the app is ever served from a subdirectory. */
+function isAppUrl(url){
+  try{
+    return new URL(url).pathname === new URL(APP, self.registration.scope).pathname;
+  }catch(e){
+    return false;
+  }
+}
+
 /* The Apps Script sync must always hit the real network. */
 function isSync(url){
   return url.indexOf('script.google.com') > -1 ||
@@ -120,13 +132,25 @@ self.addEventListener('fetch', function(e){
   if(req.method !== 'GET') return;
   if(isSync(req.url)) return;
 
-  /* A navigation arrives as '/' or as '/pitch-count.html' depending on which
-     URL the coach saved. Both are answered with the cached app.
+  /* CHALK-139. ONLY a navigation to the app's own URL is answered from the
+     cache. This used to answer EVERY navigation with the app shell, so
+     robots.txt returned the app, a mistyped path returned the app with a 200,
+     and a second HTML file on the same origin was unreachable. It served a
+     stale build to two measurements during CHALK-133 and cost an afternoon.
 
-     Stale while revalidate: serve what we have immediately, then refresh the
-     cached copy in the background so the next open is current. waitUntil is
-     called synchronously here to keep the event alive for that refresh. */
+     Anything else falls through to the network and fails honestly. A 404 that
+     says 404 is worth more than a 200 that lies.
+
+     Stale while revalidate for the app itself is unchanged: serve what we have
+     immediately, then refresh the cached copy in the background so the next
+     open is current. waitUntil is called synchronously here to keep the event
+     alive for that refresh.
+
+     Note this drops '/' from the fallback. The root serves index.html, which is
+     a real page, and a registered worker used to replace it with the app while
+     a first visit got the placeholder. That inconsistency was the same bug. */
   if(req.mode === 'navigate'){
+    if(!isAppUrl(req.url)) return;          /* the network's business, not ours */
     e.waitUntil(revalidateApp());
     e.respondWith(
       caches.match(APP).then(function(app){
