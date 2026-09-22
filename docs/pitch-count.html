@@ -571,7 +571,11 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 }
 .stateline:active{background:var(--surface-tap);}
 /* radius 4, NOT a pill: a pill reads as a chip you dismiss */
-.stateline .inn{
+/* CHALK-141. The inning pill is now on TWO screens, the count strip and the
+   batting header, so it is a component with its own base rule rather than a
+   thing styled only as a descendant of .stateline. Same component, same size,
+   same tint, same hit area, wherever it sits. */
+.innpill{
   display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;
   min-height:32px;padding:3px 9px;border-radius:4px;
   background:var(--brand-tint);color:var(--text-accent);
@@ -588,15 +592,15 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
    draws nothing. 32+12 = 44 tall, and 39+6 = 45 wide at the narrowest label.
    It reaches 3px each side into the strip, which is 10px from the belief text,
    so the catcher target loses nothing a thumb can find. */
-.stateline .inn::after{
+.innpill::after{
   content:'';position:absolute;inset:-6px -3px;
 }
 /* CHALK-141. When the half is unknown the glyph slot is EMPTY, and an empty
    flex item still earns the 5px gap. :empty takes it out of layout entirely, so
    an unknown half costs no width and the tag is the same size it was. */
-#inningHalf{display:flex;align-items:center;}
-#inningHalf:empty{display:none;}
-.stateline .inn:active{background:var(--brand-primary);color:var(--text-on-accent);}
+.innhalf{display:flex;align-items:center;}
+.innhalf:empty{display:none;}
+.innpill:active{background:var(--brand-primary);color:var(--text-on-accent);}
 .stateline .belief{
   flex:0 1 auto;min-width:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -1089,13 +1093,13 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
            first-time user taps once and learns, and the label already says what
            the thing is. Do not add affordances here unasked. -->
       <button class="stateline" id="catcherBtn" aria-label="Change the catcher">
-        <span class="inn" id="inningBtn" role="button" tabindex="0"
+        <span class="innpill inn" id="inningBtn" role="button" tabindex="0"
               aria-label="Start the next inning">
           <!-- CHALK-141. The triangle is back and now MEANS something: up is
                the top of the inning, down is the bottom. Derived from the
                schedule's vs and @, never entered, and EMPTY whenever the app
                cannot be sure. Do not put a static one back. -->
-          <span id="inningHalf" aria-hidden="true"></span>
+          <span class="innhalf" id="inningHalf" aria-hidden="true"></span>
           <span id="inningNum">1st</span>
         </span>
         <span class="belief" id="beliefText"></span>
@@ -1205,7 +1209,17 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
   <section class="screen" id="s-batting">
     <header class="phead">
       <div class="eyebrow">We are batting</div>
-      <h1 id="batInningTitle">1st inning</h1>
+      <!-- CHALK-141, option C. The pill alone, exactly as it sits on the
+           pitching screen. The words "Nth inning" are gone because the pill
+           already carries the number and repeating it is what option A did.
+
+           On this tab the triangle is fixed by home and away, because this tab
+           IS our half: away bats the top, home bats the bottom. -->
+      <span class="innpill" id="batInningPill" role="button" tabindex="0"
+            aria-label="Start the next inning">
+        <span class="innhalf" id="batInningHalf" aria-hidden="true"></span>
+        <span id="batInningNum">1st</span>
+      </span>
     </header>
     <hr class="rule">
 
@@ -1654,6 +1668,13 @@ function opponentOn(date){
    trust whatever is on screen, and a wrong half is worse than no half. Do not
    give this a default. */
 function homeAwayOn(date){
+  /* THE ASSUMPTION THIS RESTS ON: the title reads "us <separator> them", so the
+     word between the two team names describes OUR side. Every entry in the feed
+     starts with our team, which is what makes "vs" mean we are hosting. If
+     GameChanger ever listed the opponent first, this reading INVERTS and every
+     triangle and every inning advance is wrong for the whole season. It would
+     not throw and nothing would look broken, so check the feed before assuming
+     the parser is at fault. */
   var hit=null;
   schedule().forEach(function(e){
     if(e.date===date&&e.kind==='game'&&!hit) hit=e;
@@ -1663,6 +1684,16 @@ function homeAwayOn(date){
   if(!m) return '';
   var sep=String(m[1]).replace(/\.$/,'').toLowerCase();
   return (sep==='@'||sep==='at')?'away':'home';
+}
+
+/* CHALK-141. The half WE BAT, which does not depend on the tab: away bats the
+   top, home bats the bottom. The batting pill uses this rather than
+   currentHalf, because that screen is always our half and its triangle must not
+   change with whatever tab happens to be on. '' when unknown, as everywhere. */
+function battingHalf(){
+  var ha=homeAwayOn(S.game?S.game.date:todayStr());
+  if(!ha) return '';
+  return (ha==='home')?'bottom':'top';
 }
 
 /* Which half of the inning we are in NOW, as 'top', 'bottom', or '' when the
@@ -2247,13 +2278,14 @@ function renderBatting(){
   el('batStrike').textContent=c.s;
   el('batOut').textContent=c.o;
   el('batInning').textContent=currentInning();
-  /* CHALK-141. The same derivation on the batting side, where the half is the
-     other one: the tab IS the flip. Reads "Bottom of the 3rd" when it is known
-     and "3rd inning" when it is not. */
-  var bhalf=currentHalf();
-  el('batInningTitle').textContent=bhalf
-    ? ((bhalf==='top'?'Top':'Bottom')+' of the '+inningLabel(currentInning()))
-    : (inningLabel(currentInning())+' inning');
+  /* CHALK-141. The pill, same component as the count screen. The half is fixed
+     by home and away here, since this tab is always our half. */
+  var bhalf=battingHalf();
+  el('batInningNum').textContent=inningLabel(currentInning());
+  el('batInningHalf').innerHTML=halfGlyph(bhalf);
+  el('batInningPill').setAttribute('aria-label',
+    (bhalf?(bhalf==='top'?'Top':'Bottom')+' of the '+inningLabel(currentInning())+'. ':'')+
+    'Start the next inning');
   pipRow(el('pipsBall'),c.b,4,'ball');
   pipRow(el('pipsStrike'),c.s,3,'strike');
   pipRow(el('pipsOut'),c.o,3,'out');
@@ -3813,6 +3845,19 @@ el('s-batting').addEventListener('keydown',function(e){
    cannot tell a foul that did nothing from a tap that missed. The buzz belongs
    to the gesture, not to the state change. */
 function foulTap(){ addFoul(); flashTap(el('batFoul')); }
+/* CHALK-141. The batting pill is the same target as the count one: a tap
+   advances the inning and opens nothing. stopPropagation on the key path
+   because the global handler would otherwise count a PITCH from this screen. */
+el('batInningPill').addEventListener('click',function(e){
+  e.stopPropagation();
+  advanceInning(); renderAll();
+});
+el('batInningPill').addEventListener('keydown',function(e){
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  e.preventDefault(); e.stopPropagation();
+  advanceInning(); renderAll();
+});
+
 el('batFoul').addEventListener('click',foulTap);
 /* a label does not activate on Enter or Space, and stopPropagation keeps the
    global key handler from counting a PITCH on this screen */

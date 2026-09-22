@@ -68,5 +68,30 @@ var unknown=goSrc.slice(goSrc.lastIndexOf('} else {'));
 is(/advanceInning/.test(unknown),false,
    'and with home or away unknown it advances nothing');
 
+console.log('\n=== 5. the batting pill is fixed by home and away, not by the tab ===');
+var battingHalfSrc=(function(){ try{ return H.grab(app,'battingHalf'); }catch(e){ return ''; } })();
+is(battingHalfSrc!=='',true,'battingHalf exists');
+if(!battingHalfSrc){
+  console.log('\n  This build has no batting pill. Nothing below can be exercised.');
+  console.log('\nFAILED '+fail+' of '+(pass+fail));
+  process.exit(1);
+}
+eval(battingHalfSrc);
+var S={game:{date:DATE}};
+function todayStr(){ return DATE; }
+setSchedule([{date:DATE,title:'@ Southgate Giants',kind:'game'}]);
+is(battingHalf(),'top','away bats the TOP, so the batting pill points up');
+setSchedule([{date:DATE,title:'vs Northside Rangers',kind:'game'}]);
+is(battingHalf(),'bottom','home bats the BOTTOM, so it points down');
+setSchedule([]);
+is(battingHalf(),'','and unknown draws nothing, the same rule as everywhere');
+
+console.log('\n=== 6. the pill is one component, on both screens ===');
+is(/\.innpill\{/.test(app),true,'it has its own base rule, not a descendant one');
+is(/\.innpill::after/.test(app),true,'and the 44px hit area belongs to the component');
+is((app.match(/class="innpill/g)||[]).length,2,'used on exactly two screens');
+is(/id="batInningTitle"/.test(app),false,
+   'the words "Nth inning" are gone, since the pill already carries the number');
+
 console.log('\n'+(fail?('FAILED '+fail+' of '+(pass+fail)):('ALL '+pass+' PASSED')));
 process.exit(fail?1:0);
