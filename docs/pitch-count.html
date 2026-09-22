@@ -1322,8 +1322,9 @@ body.ready .screen.on{animation:screenIn var(--motion-base) var(--ease-enter);}
         <p class="muted" style="margin:-6px 0 10px">Everything is stored on this device only.
         Nothing is sent anywhere except the Google Sheet you connect.</p>
         <button class="btn danger wide" id="wipeBtn">Clear everything</button>
-        <p class="muted" style="margin-top:10px">Deletes the roster and every logged outing on
-        this device. This cannot be undone.</p>
+        <p class="muted" style="margin-top:10px">Clears the roster and every logged outing on
+        this phone, and disconnects it from your team&rsquo;s Google Sheet and schedule.
+        The sheet itself is not touched. This cannot be undone.</p>
       </div>
 
     </div>
@@ -3246,9 +3247,11 @@ function pushRoster(){
     /* The title carries the consequence, the body names EVERY one of them. A
        count is not enough for a coach to recognise which mistake he is looking
        at, and the title cannot hold eleven names. */
-    ask({title:'This would remove '+nameList(d.accidental)+' from your sheet',
+    /* CHALK-149. "your sheet" reads as the phone to someone who has just
+       cleared one. Name the shared thing. */
+    ask({title:'This would remove '+nameList(d.accidental)+' from your team\u2019s Google Sheet',
          body:d.accidental.join(', ')+
-              (d.accidental.length>1?' are':' is')+' in the sheet and not on this '+
+              (d.accidental.length>1?' are':' is')+' in your team\u2019s Google Sheet and not on this '+
               'device, and '+(d.accidental.length>1?'they were':'he was')+
               ' not removed here. Another phone may have added '+
               (d.accidental.length>1?'them':'him')+'. Keeping '+
@@ -4049,21 +4052,51 @@ el('endGameBtn').addEventListener('click',function(){
 });
 el('wipeBtn').addEventListener('click',function(){
   ask({title:'Clear everything',
-       body:'The roster and all '+S.outings.length+' logged outing'+
-            (S.outings.length===1?'':'s')+' are deleted from this device. '+
-            'This cannot be undone'+(syncUrl()?', and the deletes are sent to the sheet too':'')+'.',
-       yes:'Delete everything', danger:true},wipeNow);
+       body:'This clears this phone: the roster and all '+S.outings.length+
+            ' logged outing'+(S.outings.length===1?'':'s')+'. '+
+            (syncUrl()||savedIcsUrl()
+              ? 'It also disconnects this phone from your team\u2019s Google Sheet '+
+                'and schedule. The sheet itself is not touched, and nothing done '+
+                'here afterwards can reach it. '
+              : '')+
+            'This cannot be undone.',
+       yes:'Clear this phone', danger:true},wipeNow);
 });
+
+/* CHALK-149. Clear everything used to wipe local data and LEAVE THE DEVICE
+   WIRED TO THE SHARED SHEET. An empty phone still pointed at production, so a
+   test player added afterwards synced straight into the team record. That is
+   how the Roster tab ended up holding two test players instead of eleven.
+
+   CHALK-146 did not catch it and was not supposed to: the device held two
+   players, so it was not empty, and the shrink was confirmed by whoever was
+   holding the phone. 146 assumed the device was being used in earnest.
+
+   The scenario that settles it: he hands the phone to his son to try, then
+   tells him to clear it. After clearing, the son must not be able to reach the
+   team's record at all.
+
+   THE SHEET IS NOT TOUCHED. This used to queue a delete for every outing, so
+   clearing a phone emptied the shared Game Log too. That is wrong for the same
+   reason: the record belongs to the league, not to this device. The pending
+   queue is emptied rather than sent, because a delete that survived a wipe
+   would fire at whatever sheet the device is connected to NEXT, which could be
+   somebody else's.
+
+   Named keys, never a blanket clear, so nothing leaves that was not meant to.
+   The theme is a preference of this phone and stays. */
 function wipeNow(){
-  /* every outing, not only the synced ones. One marked unsent may have landed
-     with only the response lost, and a wipe that left those rows behind would
-     recreate the divergence this exists to prevent. The queue lives under its
-     own key, so the reset below cannot take it with it. */
-  /* everything goes, so there is no remaining row to correct */
-  S.outings.forEach(function(o){ pushDelete(o.id,null); });
-  /* nothing reseeds a roster any more, so a wipe stays wiped. Settings >
-     Roster is the way back. */
-  S={roster:[],outings:[],game:null,opp:0}; save(); renderAll();
+  S={roster:[],outings:[],game:null,opp:0};
+  save();
+  [DELQ_KEY,          /* queued deletes must never reach a later connection */
+   SYNC_KEY,          /* the sheet */
+   ICS_KEY,           /* the schedule feed */
+   SCHED_KEY,         /* and the schedule it cached, which is team data */
+   TEAM_KEY,          /* the team name, for the same reason */
+   ROSTER_SAVED_KEY,  /* a fingerprint of a relationship that no longer exists */
+   ROSTER_REMOVED_KEY /* and the ledger that went with it */
+  ].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} });
+  renderAll();
 }
 
 /* ---------------- nav ---------------- */
