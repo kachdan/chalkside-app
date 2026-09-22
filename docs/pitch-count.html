@@ -1030,6 +1030,30 @@ body.ready .screen.on{animation:screenIn var(--motion-base) var(--ease-enter);}
 @keyframes verdictIn{ from{opacity:.35;} to{opacity:1;} }
 .verdict.changed{animation:verdictIn var(--motion-fast) var(--ease-enter);}
 
+/* CHALK-138. Every counting tap pulses its whole target, strong enough to
+   catch in the corner of the eye without looking at it. This ships whether or
+   not the iOS haptic works: it helps in both cases and it is the fallback if
+   the haptic never fires.
+
+   POINTER EVENTS OFF, always. This overlay sits on top of the target a coach is
+   tapping twenty times a minute, and an overlay that can swallow a tap is a
+   rules bug, not a polish bug. It also has no layout: inset on an absolutely
+   positioned pseudo element cannot move anything.
+
+   Opacity only, so it survives reduced motion, where a pulse that does not move
+   is still information. */
+@keyframes tapFlash{ from{opacity:.30;} to{opacity:0;} }
+.tapzone,.tile{position:relative;}
+.tapflash::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;
+  background:var(--text-accent);opacity:0;pointer-events:none;
+  animation:tapFlash var(--motion-fast) var(--ease-exit);
+}
+
+/* Labels standing in for buttons: the cursor and the tap highlight go with the
+   role, not the tag. */
+label.tapzone,label.tile{cursor:pointer;}
+
 /* Reduced motion. Crossfades may stay; anything that MOVES does not. */
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;}
@@ -1096,10 +1120,20 @@ body.ready .screen.on{animation:screenIn var(--motion-base) var(--ease-enter);}
         <div class="ticks"><span>0 rest</span><span>1 day</span><span>2 days</span><span>3 days</span></div>
       </div>
 
-      <button class="tapzone" id="tapzone">
+      <!-- CHALK-138. A LABEL, not a button, and that is the whole hypothesis.
+           The iOS haptic is a side effect of a native switch, and the first
+           attempt toggled that switch from script inside the tap handler, which
+           produced nothing on Dan's phone. A label puts the user's own finger on
+           the native control: the toggle becomes his gesture rather than a
+           dispatched one.
+
+           Space and Enter still count a pitch through the global key handler
+           below, so nothing is lost by this not being a button. -->
+      <label class="tapzone" id="tapzone" for="hapPitch" role="button"
+             aria-label="Add a pitch">
         <div class="count safe" id="countNum">0</div>
         <div class="taphint" id="tapHint">Tap anywhere to add a pitch</div>
-      </button>
+      </label>
 
       <div class="verdict" id="verdict"></div>
 
@@ -1177,21 +1211,21 @@ body.ready .screen.on{animation:screenIn var(--motion-base) var(--ease-enter);}
 
     <div class="pad">
       <div class="tiles">
-        <button class="tile ctl" data-bat="ball">
+        <label class="tile ctl" data-bat="ball" for="hapBall" role="button" tabindex="0">
           <span class="tlabel">Ball</span>
           <span class="tval" id="batBall">0</span>
           <span class="pips" id="pipsBall"></span>
-        </button>
-        <button class="tile ctl" data-bat="strike">
+        </label>
+        <label class="tile ctl" data-bat="strike" for="hapStrike" role="button" tabindex="0">
           <span class="tlabel">Strike</span>
           <span class="tval" id="batStrike">0</span>
           <span class="pips" id="pipsStrike"></span>
-        </button>
-        <button class="tile info" data-bat="out">
+        </label>
+        <label class="tile info" data-bat="out" for="hapOut" role="button" tabindex="0">
           <span class="tlabel">Out</span>
           <span class="tval" id="batOut">0</span>
           <span class="pips" id="pipsOut"></span>
-        </button>
+        </label>
         <!-- a tile that looks tappable and is not is worse than no tile -->
         <button class="tile info" data-bat="inning">
           <span class="tlabel">Inning</span>
@@ -2479,20 +2513,45 @@ function bump(n){
    viewport can reach it, with pointer events off, out of the tab order and
    hidden from assistive tech. */
 var hapticEl=null, hapticReady=null;
+function makeHapticSwitch(id){
+  var probe=document.createElement('input');
+  probe.type='checkbox';
+  probe.setAttribute('switch','');
+  if(id) probe.id=id;
+  probe.tabIndex=-1;
+  probe.setAttribute('aria-hidden','true');
+  /* NOT display:none, visibility:hidden or appearance:none. All three stop the
+     control being natively rendered, which is the thing producing the tick.
+     Off screen instead, where no viewport reaches it. position:fixed so that
+     focusing it cannot scroll anything. */
+  probe.style.cssText='position:fixed;top:0;left:-9999px;width:32px;height:20px;'+
+                      'opacity:0;pointer-events:none;';
+  document.body.appendChild(probe);
+  return probe;
+}
+
+/* CHALK-138. One switch per counting target, each the target of a <label>.
+   Created only when the attribute is supported, so on every other browser the
+   labels point at nothing, which is inert, and the click handlers are
+   untouched. */
+var HAPTIC_TARGETS=['hapPitch','hapBall','hapStrike','hapOut'];
+function installHapticSwitches(){
+  try{
+    if(!('switch' in document.createElement('input'))) return false;
+    for(var i=0;i<HAPTIC_TARGETS.length;i++) makeHapticSwitch(HAPTIC_TARGETS[i]);
+    return true;
+  }catch(e){ return false; }
+}
+
+/* The scripted one, still here for everything that is NOT a counting tap: the
+   75 pattern, and any path a finger did not start. It is the weaker mechanism
+   and is why this ticket exists, but it costs nothing to keep. */
 function hapticSwitch(){
   if(hapticReady!==null) return hapticEl;
   hapticReady=false;
   try{
-    var probe=document.createElement('input');
-    if(!('switch' in probe)) return null;          /* not Safari 17.4+ */
-    probe.type='checkbox';
-    probe.setAttribute('switch','');
-    probe.tabIndex=-1;
-    probe.setAttribute('aria-hidden','true');
-    probe.style.cssText='position:fixed;top:0;left:-9999px;width:32px;height:20px;'+
-                        'opacity:0;pointer-events:none;';
-    document.body.appendChild(probe);
-    hapticEl=probe; hapticReady=true;
+    if(!('switch' in document.createElement('input'))) return null;
+    hapticEl=makeHapticSwitch(''); hapticReady=true;
   }catch(e){ hapticEl=null; }
   return hapticEl;
 }
@@ -2519,7 +2578,17 @@ function buzz(p){
 }
 function hapticTick(sw){ try{ sw.click(); }catch(e){} }
 
-el('tapzone').addEventListener('click',function(){bump(1);});
+/* CHALK-138. Restarting a CSS animation needs the class off, a reflow, then on.
+   Called AFTER the count is updated, so it can never sit in front of the
+   number changing. */
+function flashTap(node){
+  if(!node) return;
+  node.classList.remove('tapflash');
+  void node.offsetWidth;
+  node.classList.add('tapflash');
+}
+
+el('tapzone').addEventListener('click',function(){ bump(1); flashTap(el('tapzone')); });
 el('minusBtn').addEventListener('click',function(){bump(-1);});
 el('swapBtn').addEventListener('click',openPicker);
 
@@ -3709,13 +3778,28 @@ el('sheet').addEventListener('click',function(e){
 el('shareBtn').addEventListener('click',openShare);
 el('fixClearBtn').addEventListener('click',openClearFix);
 
-el('s-batting').addEventListener('click',function(e){
-  var t=e.target.closest('[data-bat]'); if(!t) return;
+function batTileAction(t){
   var k=t.dataset.bat;
   if(k==='ball') addBall();
   else if(k==='strike') addStrike();
   else if(k==='out') addOut(false);
-  else if(k==='inning') openInningCorrect();
+  else if(k==='inning'){ openInningCorrect(); return; }
+  flashTap(t);          /* counting taps only; correcting the inning is not one */
+}
+el('s-batting').addEventListener('click',function(e){
+  var t=e.target.closest('[data-bat]'); if(!t) return;
+  batTileAction(t);
+});
+/* CHALK-138. Three of these tiles are labels now, and a label does not activate
+   on Enter or Space the way a button does. Without this, converting them for
+   the haptic would have quietly cost the keyboard path. stopPropagation keeps
+   the global key handler from ALSO counting a pitch, which it would have done
+   on this screen. */
+el('s-batting').addEventListener('keydown',function(e){
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  var t=e.target.closest&&e.target.closest('[data-bat]'); if(!t) return;
+  e.preventDefault(); e.stopPropagation();
+  batTileAction(t);
 });
 el('batFoul').addEventListener('click',addFoul);
 el('batNew').addEventListener('click',newBatter);
@@ -4218,6 +4302,10 @@ renderAll();
 requestAnimationFrame(function(){
   requestAnimationFrame(function(){ document.body.classList.add('ready'); });
 });
+
+/* CHALK-138. The switches the counting labels point at. Silent no-op wherever
+   the attribute is unsupported, which is everywhere except Safari 17.4+. */
+installHapticSwitches();
 
 /* keep the screen awake while counting */
 if('wakeLock' in navigator){
