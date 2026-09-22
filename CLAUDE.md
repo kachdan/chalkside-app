@@ -360,6 +360,36 @@ it is unverified.** A deliverable that cannot be run here gets a note saying
 which calls were checked against the real file and which were not. Silence reads
 as verified.
 
+### The haptic belongs to the GESTURE, not to the state change
+
+CHALK-138, confirmed on Dan's phone. iOS produces the switch haptic only when
+the user's own finger lands on the native control. A script toggling that same
+control, from inside the tap handler, on the same element, in the same frame,
+produces nothing. The first build did exactly that and he felt nothing at all.
+
+So the mechanism is structural, not procedural: **each counting target is a
+`<label>` for its own hidden `<input type="checkbox" switch>`**, and the tap
+activates the control directly. Anything else built on this trick has to put the
+physical tap on the native control. There is no scripted path to it.
+
+Three things that follow, all of them learned the expensive way:
+
+- **The switch must stay natively rendered.** `display:none`, `visibility:hidden`
+  and `appearance:none` each kill the haptic. Move it off screen instead, with
+  `tabindex="-1"` and `aria-hidden`, and never in the tab order.
+- **A label is not a button.** It does not activate on Enter or Space, so every
+  target converted this way needs its own keydown, and that handler must
+  `stopPropagation` or the global key handler counts a pitch as well.
+- **The buzz fires on the tap, not on the result.** Foul at two strikes changes
+  nothing, and it must still buzz: without it he cannot tell a foul that did
+  nothing from a tap that missed. Confirming a no-op is the case that matters
+  most, not the one to optimise away.
+
+**The strength is not ours to set.** It is the fixed iOS switch tick, the
+lightest the phone has. A web page cannot ask for medium or heavy, and a second
+tick would have to come from code, which is the thing that does not work. If a
+stronger buzz is ever required, that is a native wrapper, not a change here.
+
 ### Specify visual states from what RENDERS, not from what a counter can hold
 
 CHALK-145 first specified the batting digit going red at strike 3 and out 3.

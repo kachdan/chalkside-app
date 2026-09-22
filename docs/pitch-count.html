@@ -1052,7 +1052,7 @@ body.ready .screen.on{animation:screenIn var(--motion-base) var(--ease-enter);}
 
 /* Labels standing in for buttons: the cursor and the tap highlight go with the
    role, not the tag. */
-label.tapzone,label.tile{cursor:pointer;}
+label.tapzone,label.tile,label.btn{cursor:pointer;}
 
 /* Reduced motion. Crossfades may stay; anything that MOVES does not. */
 @media (prefers-reduced-motion:reduce){
@@ -1239,7 +1239,10 @@ label.tapzone,label.tile{cursor:pointer;}
            during an at bat is a frequent in-game action that belongs beside the
            other in-game controls. -->
       <div class="pairrow">
-        <button class="btn act2" id="batFoul">Foul</button>
+        <!-- CHALK-138. Foul is a counting tap: below two strikes it adds one.
+             So it is a label for its own switch like the other four, and the
+             finger lands on the native control. -->
+        <label class="btn act2" id="batFoul" for="hapFoul" role="button" tabindex="0">Foul</label>
         <button class="btn act2" id="batUndo" disabled>Undo</button>
       </div>
       <button class="btn primary wide" id="batNew" style="margin-top:32px">New batter</button>
@@ -2537,7 +2540,7 @@ function makeHapticSwitch(id){
    Created only when the attribute is supported, so on every other browser the
    labels point at nothing, which is inert, and the click handlers are
    untouched. */
-var HAPTIC_TARGETS=['hapPitch','hapBall','hapStrike','hapOut'];
+var HAPTIC_TARGETS=['hapPitch','hapBall','hapStrike','hapOut','hapFoul'];
 function installHapticSwitches(){
   try{
     if(!('switch' in document.createElement('input'))) return false;
@@ -3804,7 +3807,20 @@ el('s-batting').addEventListener('keydown',function(e){
   e.preventDefault(); e.stopPropagation();
   batTileAction(t);
 });
-el('batFoul').addEventListener('click',addFoul);
+/* CHALK-138. Foul buzzes and flashes even when it changes nothing. At two
+   strikes a foul is deliberately a no-op on the count, and that is exactly when
+   the coach most needs to know his tap landed: without the confirmation he
+   cannot tell a foul that did nothing from a tap that missed. The buzz belongs
+   to the gesture, not to the state change. */
+function foulTap(){ addFoul(); flashTap(el('batFoul')); }
+el('batFoul').addEventListener('click',foulTap);
+/* a label does not activate on Enter or Space, and stopPropagation keeps the
+   global key handler from counting a PITCH on this screen */
+el('batFoul').addEventListener('keydown',function(e){
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  e.preventDefault(); e.stopPropagation();
+  foulTap();
+});
 el('batNew').addEventListener('click',newBatter);
 el('batUndo').addEventListener('click',undoBat);
 
