@@ -2063,7 +2063,10 @@ function inningLabel(n){
    the several sites that used to build this object by hand. */
 function freshGame(seq){
   return {date:todayStr(),seq:seq||1,pitcherId:null,count:0,marks:[],
-          inning:1,innings:[],catchAdj:{}};
+          inning:1,innings:[],catchAdj:{},
+          /* CHALK-141. Away only: the bottom half is open, so leaving it is an
+             inning. A game starts before any bottom has begun. */
+          bottomOpen:false};
 }
 
 /* CHALK-110. Advancing inherits the previous inning's pitcher and catcher, so
@@ -4185,12 +4188,60 @@ function wipeNow(){
 
 /* ---------------- nav ---------------- */
 function go(name){
-  /* CHALK-111. The tab switch IS the half inning flip. A batting half that
-     reached three outs advances the inning when he actually goes back to the
-     field, so Stay here and Go to count end up in the same place. */
-  if(name==='count'&&S.game&&S.game.halfDone){
-    S.game.halfDone=false;
-    advanceInning();
+  /* CHALK-111. The tab switch IS the half inning flip.
+     CHALK-141. WHICH flip also advances the inning depends on home or away, and
+     wiring both the same way is wrong every single inning for one of them.
+
+     One rule: THE INNING GOES UP WHEN THE BOTTOM HALF ENDS. Away bats the top,
+     home bats the bottom, so:
+
+       HOME  we bat the BOTTOM. Three outs there ends the inning, and the
+             advance happens when he goes back out to the field.
+             Batting -> Count.
+       AWAY  we bat the TOP. Three outs there ends OUR half but not the inning.
+             The bottom is theirs and ours to pitch, and it ends when he leaves
+             the count screen for the next top. Count -> Batting.
+
+     The away side cannot use three outs, because outs are only counted while
+     batting. CHALK-111 decided that deliberately: tracking outs on the pitching
+     side is extra taps in the half where he is busiest. So the tab switch is
+     the only signal the bottom ended, which is what it already is for the half
+     flip itself.
+
+     UNKNOWN MEANS NOTHING MOVES. With no schedule, no game that day, or a title
+     with neither separator, the app does not advance at all and he taps the
+     inning tag himself. That is a real change from before, which advanced after
+     three outs regardless. It is the right direction: he did not know the top
+     and bottom rule until a player corrected him, so he will trust whatever the
+     app does, and an inning advanced in the wrong half is worse than one he
+     advanced by hand. */
+  var wasOn=(function(){
+    var names=['count','team','log','batting','settings'];
+    for(var i=0;i<names.length;i++){
+      if(el('s-'+names[i]).classList.contains('on')) return names[i];
+    }
+    return '';
+  })();
+  if(S.game){
+    var ha=homeAwayOn(S.game.date);
+    if(ha==='home'){
+      if(name==='count'&&S.game.halfDone){ S.game.halfDone=false; advanceInning(); }
+    } else if(ha==='away'){
+      /* three outs ended the TOP, which is ours. Clear the latch and flip, but
+         the inning stays where it is: the bottom has not been played yet. */
+      if(name==='count'){
+        if(S.game.halfDone) S.game.halfDone=false;
+        /* the bottom has begun, and only a bottom that BEGAN can end. Without
+           this the app opens on Count, he taps Batting for the first top, and
+           the inning is on 2 before a pitch is thrown. */
+        if(wasOn==='batting') S.game.bottomOpen=true;
+      } else if(name==='batting'&&wasOn==='count'&&S.game.bottomOpen){
+        S.game.bottomOpen=false;
+        advanceInning();
+      }
+    } else {
+      if(name==='count'&&S.game.halfDone) S.game.halfDone=false;
+    }
   }
   ['count','team','log','batting','settings'].forEach(function(n){
     el('s-'+n).classList.toggle('on',n===name);
