@@ -50,10 +50,16 @@ SCHED_HEAD = ['Date', 'Title']
 import datetime as _dt
 _T = _dt.date.today().isoformat()
 _D = lambda n: (_dt.date.today() - _dt.timedelta(days=n)).isoformat()
+# CHALK-152 needs both cases reachable in the preview: a game with more than
+# one pitcher, and a player with TWO outings on the SAME DAY, so correcting one
+# has to move the other's clear date.
 SEED_LOG = [
-    [_T,    1,  'Abe Marlow',  40, 'vs MH Rangers', _D(-2), 'now', 'g1'],
-    [_T,    3,  'Cyrus Denby', 70, 'vs MH Rangers', _D(-3), 'now', 'g2'],
-    [_D(3), 7,  'Dorian Elvey', 22, '@ Eastvale',   _D(2),  'now', 'g3'],
+    [_T,    1,  'Abe Marlow',   41, 'vs MH Rangers', _D(-3), 'now', 'g1'],
+    [_T,    3,  'Cyrus Denby',  52, 'vs MH Rangers', _D(-3), 'now', 'g2'],
+    [_T,    7,  'Dorian Elvey', 23, 'vs MH Rangers', _D(-1), 'now', 'g3'],
+    # the same player again, earlier the same day: day total 41 + 20 = 61
+    [_T,    1,  'Abe Marlow',   20, 'vs MH Rangers', _D(-3), 'now', 'g0'],
+    [_D(3), 7,  'Dorian Elvey', 22, '@ Eastvale',    _D(2),  'now', 'g9'],
 ]
 SEED_SCHED = [
     [_T,    'vs MH Rangers'],

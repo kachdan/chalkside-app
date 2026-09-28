@@ -44,6 +44,17 @@ var BREAKS=[
    "if(lead){ num=lead[1]; name=lead[2]; }",
    "if(lead){ num=String(+lead[1]); name=lead[2]; }",
    'jersey 01 is parsed as 1'],
+  /* CHALK-152's own failure mode: a restate that names only the row that was
+     edited. Rest comes from the DAY, so the other outing that player threw that
+     day keeps a clear date that is now wrong, silently. */
+  ['restate-only-this-row.html',
+   "  return {rows:rest.map(function(x){ return {id:x.id,eligible:eligible}; })};",
+   "  return {rows:[{id:rest[rest.length-1].id,eligible:eligible}]};",
+   'the restate names only one row, so a second outing that day keeps a stale clear date'],
+  ['reconcile-clamps.html',
+   "  reconcile.pending[id]=Math.max(0,cur+(+delta||0));",
+   "  reconcile.pending[id]=Math.min(85,Math.max(0,cur+(+delta||0)));",
+   'the stepper clamps at 85, so a real count that exceeded it cannot be recorded'],
   ['inning-ordinal.html',
    "return n+(suf[(v-20)%10]||suf[v]||suf[0]);",
    "return n>3?'3rd':n+(suf[(v-20)%10]||suf[v]||suf[0]);",

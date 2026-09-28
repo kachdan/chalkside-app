@@ -692,6 +692,32 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 /* Text is the same hue darkened towards --ink so it reads against its own
    tint. Without color-mix it falls back to the plain token, which is why
    warn falls back to the dark caution token rather than the bright one. */
+/* CHALK-152. A reconcile row. UNCHANGED shows the engine's own status line;
+   CHANGED takes the caution tint and says what the correction does, so the
+   consequence is visible before saving rather than discovered afterwards. */
+.rrow{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 12px;border-radius:var(--radius-md);margin-bottom:8px;
+  background:var(--surface-control);
+}
+.rrow .ptext{flex:1;min-width:0;}
+.rrow .pname{
+  display:block;font-size:17px;font-weight:500;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.rrow .rsub{
+  display:block;font-size:13px;color:var(--text-secondary);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.rrow .stepper{flex:0 0 auto;}
+/* the tint is a layer, like .tag, so it renders where color-mix does not */
+.rrow.changed{position:relative;z-index:0;background:transparent;}
+.rrow.changed::before{
+  content:'';position:absolute;inset:0;z-index:-1;border-radius:inherit;
+  background:var(--status-caution);opacity:.15;
+}
+.rrow.changed .rsub{color:var(--status-caution-on-control);font-weight:600;}
+
 /* CHALK-151. The game card. Tinted, so it reads as the game rather than as the
    first row of the list, and both states are the same three parts in the same
    order: who, where you are, and the one action. Same parts means the height
@@ -3990,6 +4016,182 @@ function todaysGameSummary(){
   });
   return {pitchers:n,pitches:total};
 }
+/* ---------------- CHALK-152, reconcile ----------------
+   After a game Dan sits with the scorekeeper and walks the list. He is usually
+   right and occasionally off by a couple per pitcher, and until now there was no
+   way to correct a count at all.
+
+   EVERY pitcher in the game, editable at once: one open, walk down, one save.
+   A tray per outing was the rejected option, because the conversation is one
+   pass down a list, not a series of separate decisions.
+
+   THE RULES STAY IN THE ENGINE. Nothing here works out a rest day. It asks
+   restDays and eligibleDate the same as every other screen, so a correction
+   cannot produce an answer the Team tab disagrees with. */
+
+/* Which outings belong to the game on the card: same date, same sequence. An
+   outing with no sequence is attributed to this one, the same way
+   pitchedThisGame treats it, which is the safe direction for a legacy row. */
+function gameOutings(date,seq){
+  return S.outings.filter(function(o){
+    if(o.date!==date) return false;
+    var g=outingSeq(o);
+    return g===null||g===seq;
+  });
+}
+
+/* The day total with the tray's unsaved edits applied. Rest comes from the DAY,
+   so a correction to one outing moves the clear date of every other outing that
+   player threw that day. That is the whole reason this is computed per day and
+   not per row. */
+function pendingDayTotal(pid,date,pending){
+  var t=0;
+  S.outings.forEach(function(o){
+    if(o.pitcherId!==pid||o.date!==date) return;
+    t+=(pending&&pending[o.id]!==undefined)?(+pending[o.id]||0):(+o.pitches||0);
+  });
+  return t;
+}
+
+/* The tray. Rebuilt on every step so a changed row shows its consequence
+   immediately: the point is that he sees what the correction does BEFORE he
+   saves it, rather than discovering it in the next message he sends the staff. */
+var reconcile=null;   /* {date, seq, pending:{outingId:pitches}} */
+
+function reconcileRows(){
+  var rows=gameOutings(reconcile.date,reconcile.seq);
+  rows.sort(function(a,b){
+    var pa=S.roster.filter(function(r){return r.id===a.pitcherId;})[0]||{};
+    var pb=S.roster.filter(function(r){return r.id===b.pitcherId;})[0]||{};
+    return jerseySort(pa,pb);
+  });
+  return rows;
+}
+function reconcileChanges(){
+  var n=0;
+  reconcileRows().forEach(function(o){
+    var v=reconcile.pending[o.id];
+    if(v!==undefined&&(+v||0)!==(+o.pitches||0)) n++;
+  });
+  return n;
+}
+function renderReconcile(){
+  var rows=reconcileRows();
+  var opp=opponentOn(reconcile.date);
+  var h='<h2 class="sheetTitle">Check against GameChanger</h2>'+
+        '<div class="muted" style="margin:-6px 0 12px">'+esc(pretty(reconcile.date))+
+        (opp?('  \u00b7  '+esc(opp)):'')+'</div>';
+
+  if(!rows.length){
+    h+='<div class="empty">No outings in this game yet.</div>';
+  }
+  rows.forEach(function(o){
+    var p=S.roster.filter(function(r){return r.id===o.pitcherId;})[0]||{name:'Unknown',number:''};
+    var was=+o.pitches||0;
+    var now=(reconcile.pending[o.id]!==undefined)?(+reconcile.pending[o.id]||0):was;
+    var changed=now!==was;
+    var sub;
+    if(changed){
+      /* the consequence, from the engine: the day total decides the rest, so
+         both numbers below are the DAY's, not this row's */
+      var oldRest=restDays(pendingDayTotal(o.pitcherId,o.date,null));
+      var newRest=restDays(pendingDayTotal(o.pitcherId,o.date,reconcile.pending));
+      sub=was+' to '+now+'  \u00b7  rest '+oldRest+' day'+(oldRest===1?'':'s')+
+          ' to '+newRest;
+    }else{
+      /* The engine's own answer, never re-derived here. availability() and not
+         pitchEligibility(): this tray is usually opened minutes after the game,
+         when pitchEligibility short-circuits to "Pitched" and says nothing
+         about rest. What he needs beside a count he is checking is WHEN THE
+         BOY IS BACK, which is the same figure the correction is about to
+         move. */
+      sub=availability(o.pitcherId).tag;
+    }
+    h+='<div class="rrow'+(changed?' changed':'')+'">'+
+         jerseyTag(p)+
+         '<div class="ptext"><div class="pname">'+esc(p.name)+'</div>'+
+           '<div class="rsub">'+esc(sub)+'</div></div>'+
+         '<span class="stepper">'+
+           '<button data-rec="-1" data-id="'+o.id+'" aria-label="One fewer pitch">&minus;</button>'+
+           '<span class="n">'+now+'</span>'+
+           '<button data-rec="1" data-id="'+o.id+'" aria-label="One more pitch">+</button>'+
+         '</span>'+
+       '</div>';
+  });
+
+  var n=reconcileChanges();
+  h+='<button class="btn primary wide" id="recSave" style="margin-top:14px"'+
+     (n?'':' disabled aria-disabled="true"')+'>'+
+     (n?('Save '+n+' change'+(n===1?'':'s')):'Save')+'</button>'+
+     '<button class="btn wide" style="margin-top:8px" data-close="1">Cancel</button>'+
+     '<hr class="rule" style="margin:18px 0 14px">'+
+     '<button class="btn danger wide" id="recDelete">Delete this game</button>';
+  el('sheetInner').innerHTML=h;
+}
+
+function openReconcile(date,seq){
+  reconcile={date:date,seq:seq,pending:{}};
+  renderReconcile();
+  openSheet();
+}
+
+/* One step on one row. It lives here rather than inside the click handler so
+   it can be tested: the FLOOR AT ZERO AND THE ABSENCE OF A CEILING are a rule
+   decision, not an event detail, and a clamp buried in a listener is a rule
+   nothing can check. */
+function reconcileStep(id,delta){
+  var o=S.outings.filter(function(x){return x.id===id;})[0];
+  if(!o||!reconcile) return;
+  var cur=(reconcile.pending[id]!==undefined)?(+reconcile.pending[id]||0):(+o.pitches||0);
+  /* NO upper clamp. A pitcher who reaches the limit mid batter may finish him,
+     so a real count can exceed it, and the engine already says what that costs.
+     Clamping would make the app disagree with the scorebook. */
+  reconcile.pending[id]=Math.max(0,cur+(+delta||0));
+}
+
+/* Save writes every change together. The outings are updated FIRST and the
+   pushes go out afterwards, so restateRows sees the final day totals: a restate
+   computed mid-edit would send the clear date the sheet was already wrong
+   about. */
+function saveReconcile(){
+  var rows=reconcileRows(), touched=[];
+  rows.forEach(function(o){
+    var v=reconcile.pending[o.id];
+    if(v===undefined) return;
+    var now=Math.max(0,+v||0);
+    if(now===(+o.pitches||0)) return;
+    o.pitches=now;
+    o.synced=false;
+    touched.push(o);
+  });
+  save();
+  touched.forEach(pushToSheet);   /* outingPayload carries restate by id */
+  reconcile=null;
+  closeSheet();
+  renderAll();
+}
+
+/* Deleting the GAME. Every outing in it goes, and then every remaining row for
+   any player who pitched that day is restated: rest comes from the day total,
+   so removing one outing moves the clear date on the others. A delete that
+   leaves a stale clear date behind is CHALK-119 coming back. */
+function deleteReconciledGame(){
+  var rows=gameOutings(reconcile.date,reconcile.seq);
+  var ids=rows.map(function(o){return o.id;});
+  var affected={};
+  rows.forEach(function(o){ affected[o.pitcherId]=true; });
+  var date=reconcile.date;
+  S.outings=S.outings.filter(function(o){ return ids.indexOf(o.id)<0; });
+  save();
+  /* restate AFTER the removal, so it describes what the sheet should now hold */
+  ids.forEach(function(id,i){
+    pushDelete(id,restateRows(rows[i].pitcherId,date));
+  });
+  reconcile=null;
+  closeSheet();
+  renderAll();
+}
+
 function renderGameCard(){
   var host=el('gameCard'); if(!host) return;
   var live=gameIsLive();
@@ -4162,6 +4364,35 @@ el('sheet').addEventListener('click',function(e){
 el('s-log').addEventListener('click',function(e){
   if(e.target.closest('#shareBtn')){ openShare(); return; }
   if(e.target.closest('#endGameBtn')){ askEndGame(); return; }
+  /* CHALK-152. The kebab was inert from CHALK-151 until this ticket filled it. */
+  if(e.target.closest('#gameKebab')){
+    if(!S.game) return;
+    openReconcile(S.game.date,currentSeq());
+    return;
+  }
+});
+
+/* CHALK-152. The tray's own controls. Delegated, because the whole tray is
+   rebuilt on every step so a changed row can show its consequence at once. */
+el('sheet').addEventListener('click',function(e){
+  if(!reconcile) return;
+  var step=e.target.closest('[data-rec]');
+  if(step){
+    reconcileStep(step.dataset.id,+step.dataset.rec);
+    renderReconcile();
+    return;
+  }
+  if(e.target.closest('#recSave')){ saveReconcile(); return; }
+  if(e.target.closest('#recDelete')){
+    var rows=gameOutings(reconcile.date,reconcile.seq);
+    var total=0; rows.forEach(function(o){ total+=(+o.pitches||0); });
+    ask({title:'Delete this game',
+         body:rows.length+' outing'+(rows.length===1?'':'s')+' and '+total+
+              ' pitches come off the record'+(syncUrl()?', here and in the sheet':'')+
+              '. Every rest day is worked out again without them. This cannot be undone.',
+         yes:'Delete the game', dangerPrimary:true},deleteReconciledGame);
+    return;
+  }
 });
 el('fixClearBtn').addEventListener('click',openClearFix);
 
