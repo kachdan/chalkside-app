@@ -681,6 +681,36 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 /* Text is the same hue darkened towards --ink so it reads against its own
    tint. Without color-mix it falls back to the plain token, which is why
    warn falls back to the dark caution token rather than the bright one. */
+/* CHALK-151. The game card. Tinted, so it reads as the game rather than as the
+   first row of the list, and both states are the same three parts in the same
+   order: who, where you are, and the one action. Same parts means the height
+   does not move when the game ends, so the list below does not jump. */
+.gamecard{
+  background:var(--brand-tint);border-radius:var(--radius-lg);
+  padding:14px;margin-bottom:14px;
+}
+.gamecard .gctop{display:flex;align-items:flex-start;gap:12px;}
+.gamecard .gcwho{flex:1;min-width:0;}
+.gamecard .gcopp{
+  display:block;font-size:17px;font-weight:600;color:var(--text-primary);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.gamecard .gcstate{
+  display:block;font-size:13.5px;color:var(--text-secondary);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* 44 by 44, and it is the game's menu, which is why it sits inside the card */
+.gamecard .gckebab{
+  flex:0 0 auto;width:44px;height:44px;margin:-10px -10px 0 0;
+  display:flex;align-items:center;justify-content:center;
+  background:none;border:0;border-radius:var(--radius-md);
+  color:var(--text-secondary);cursor:pointer;
+}
+.gamecard .gckebab:active{background:var(--surface-tap);}
+.gamecard .gckebab svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;
+  fill:none;stroke-linecap:round;stroke-linejoin:round;}
+.gamecard .gcact{margin-top:12px;}
+
 /* CHALK-153. The STATUS is the answer; the name is only how you find the line.
    So the status sits on the right, as icon plus coloured text, with NO chip and
    no fill: eleven filled shapes down one edge is a pattern, not a signal, and
@@ -1242,12 +1272,24 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
 
              Not in both places. CHALK-127 established one way into any control:
              two drift, and one of them silently stops being maintained. -->
-        <button class="btn" id="shareBtn">Share</button>
       </div>
       <div class="subline" id="logSub"></div>
     </header>
     <hr class="rule">
     <div class="pad">
+      <!-- CHALK-151. One tinted card, two states, same position. The action
+           lives INSIDE it, full width: below the card the kebab and the button
+           read as belonging to the list rather than to the game.
+
+           Not two permanent buttons. You can never share a game that has not
+           ended and you do not need End game once it has, so one of the two
+           would always be inert. The card also says which step you are on,
+           which nothing on this screen did.
+
+           Share moved off the heading line into the card for CHALK-127's
+           reason: one way into any control. Two drift, and one of them quietly
+           stops being maintained. -->
+      <div class="gamecard" id="gameCard"></div>
       <div id="logList"></div>
       <button class="btn wide" id="addManual" style="margin-top:10px">Add a past outing</button>
     </div>
@@ -1415,8 +1457,11 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
         </div>
 
         <h2 style="margin-top:24px">Game</h2>
-        <button class="btn primary wide" id="endGameBtn">End game</button>
-        <p class="muted" style="margin-top:10px">Logs whatever is on the counter, then clears the pitch count and the innings caught for the next game. The outing log is kept.</p>
+        <!-- CHALK-151. End game moved to the Log, inside the game card.
+             REMOVED here, not duplicated: two ways into one control drift. -->
+        <p class="muted">Ending a game now lives on the Log, in the game card at
+        the top. It logs whatever is on the counter, then clears the pitch count
+        and the innings caught for the next game. The outing log is kept.</p>
       </div>
 
       <div class="pad spane" data-pane="app">
@@ -3813,7 +3858,52 @@ function logGroups(){
   });
 }
 
+/* CHALK-151. Which step this game is on. Live means there is something to end:
+   a pitcher on the mound or pitches on the counter, today. Anything else is
+   ended, including a day that has not started, because the action a coach
+   wants then is the same one. */
+function gameIsLive(){
+  return !!(S.game&&gameIsToday()&&(S.game.pitcherId||S.game.count>0));
+}
+function todaysGameSummary(){
+  var t=todayStr(), pitchers={}, n=0, total=0;
+  S.outings.forEach(function(o){
+    if(o.date!==t) return;
+    if(!pitchers[o.pitcherId]){ pitchers[o.pitcherId]=true; n++; }
+    total+=(+o.pitches||0);
+  });
+  return {pitchers:n,pitches:total};
+}
+function renderGameCard(){
+  var host=el('gameCard'); if(!host) return;
+  var live=gameIsLive();
+  var opp=opponentOn(todayStr());
+  var who=opp||(live?'Game in progress':'No game scheduled today');
+  var state, action;
+  if(live){
+    state='Game in progress';
+    action='<button class="btn primary wide" id="endGameBtn">End game</button>';
+  }else{
+    var g=todaysGameSummary();
+    state=g.pitchers
+      ? ('Ended \u00b7 '+g.pitchers+' pitcher'+(g.pitchers===1?'':'s')+' \u00b7 '+g.pitches)
+      : 'Nothing logged today';
+    action='<button class="btn wide" id="shareBtn">Share availability</button>';
+  }
+  host.innerHTML=
+    '<div class="gctop">'+
+      '<div class="gcwho"><span class="gcopp">'+esc(who)+'</span>'+
+        '<span class="gcstate">'+esc(state)+'</span></div>'+
+      '<button class="gckebab" id="gameKebab" aria-label="Game options">'+
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1"/>'+
+        '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>'+
+      '</button>'+
+    '</div>'+
+    '<div class="gcact">'+action+'</div>';
+}
+
 function renderLog(){
+  renderGameCard();
   var groups=logGroups();
   if(!groups.length){ el('logList').innerHTML='<div class="empty">No outings logged yet.</div>'; return; }
   el('logList').innerHTML=groups.map(function(g){
@@ -3949,7 +4039,12 @@ el('sheet').addEventListener('click',function(e){
   shareTarget=b.dataset.sharedate;
   openShare();
 });
-el('shareBtn').addEventListener('click',openShare);
+/* CHALK-151. The card is rebuilt on every render, so its buttons cannot hold
+   their own listeners. Delegated from the screen instead. */
+el('s-log').addEventListener('click',function(e){
+  if(e.target.closest('#shareBtn')){ openShare(); return; }
+  if(e.target.closest('#endGameBtn')){ askEndGame(); return; }
+});
 el('fixClearBtn').addEventListener('click',openClearFix);
 
 function batTileAction(t){
@@ -4324,16 +4419,18 @@ function endGame(){
   pickedId=null;
   save();
 }
-el('endGameBtn').addEventListener('click',function(){
+/* CHALK-151. Ending is destructive and now sits one tap closer to everything,
+   so the confirmation stays exactly as it was. */
+function askEndGame(){
   var live=(S.game&&S.game.count)||0;
   ask({title:'End this game',
        body:(live?live+' pitches on the counter go to the log first. ':'')+
             'The pitch count and the innings caught clear for the next game, '+
             'and the outing log is kept.',
        yes:'End game'},function(){
-    endGame(); renderAll(); go('count');
+    endGame(); renderAll();
   });
-});
+}
 el('wipeBtn').addEventListener('click',function(){
   ask({title:'Clear everything',
        body:'This clears this phone: the roster and all '+S.outings.length+
