@@ -709,7 +709,15 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 .gamecard .gckebab:active{background:var(--surface-tap);}
 .gamecard .gckebab svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;
   fill:none;stroke-linecap:round;stroke-linejoin:round;}
-.gamecard .gcact{margin-top:12px;}
+/* CHALK-151 revised. The ended card has no button, so it is 60px shorter, and
+   measured, the list under it jumped 60px UP the moment the game ended. That is
+   a mis-tap waiting to happen directly after a destructive action, so the slot
+   is RESERVED rather than removed. Tied to the tap-target token the button
+   itself uses, so it cannot drift from the button's height.
+
+   The empty space is the cost, and it is the cheaper one: a little air under an
+   ended game against the list moving under a thumb that is already travelling. */
+.gamecard .gcact{margin-top:12px;min-height:var(--size-tap-lg);}
 
 /* CHALK-153. The STATUS is the answer; the name is only how you find the line.
    So the status sits on the right, as icon plus coloured text, with NO chip and
@@ -1139,6 +1147,23 @@ body.ready .screen.on{animation:screenIn var(--motion-base) var(--ease-enter);}
   animation:tapFlash var(--motion-fast) var(--ease-exit);
 }
 
+/* CHALK-151 revised. A trailing icon on a Tertiary button: it goes AFTER the
+   label because sharing leaves the app. Sized to the text, not to the 15px the
+   status icons use, so it reads as part of the word rather than as a second
+   thing beside it. */
+.btn .trail{
+  width:14px;height:14px;margin-left:5px;flex:0 0 auto;
+  stroke:currentColor;stroke-width:2;fill:none;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+.headline .btn.tertiary{display:inline-flex;align-items:center;position:relative;}
+/* CHALK-151 revised. .headline .btn is 40 tall by design, which is under the
+   44px minimum, so the HIT AREA grows and the button does not. Same trick as
+   the inning pill: a pseudo element that draws nothing and cannot be tapped
+   past. It reaches 2px beyond the header's right padding, which holds nothing
+   else. */
+.headline .btn.tertiary::after{content:'';position:absolute;inset:-2px -6px;}
+
 /* Labels standing in for buttons: the cursor and the tap highlight go with the
    role, not the tag. */
 label.tapzone,label.tile,label.btn{cursor:pointer;}
@@ -1272,8 +1297,24 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
 
              Not in both places. CHALK-127 established one way into any control:
              two drift, and one of them silently stops being maintained. -->
+        <!-- CHALK-151 revised. Share is NOT a game action. It is about the
+             roster today against whatever comes next, and Dan sends it after a
+             game AND on a Friday when someone asks who is good for Saturday.
+             Inside the game card it forced the card to exist every day, so a
+             no-game day got a card whose only job was to hold a button.
+
+             Tertiary, not Secondary: labelled, quiet, already in the system.
+             An icon-only button was rejected as vague outside the iOS share
+             sheet, and putting Send on the Available group header was rejected
+             because it looks like it sends only that group.
+
+             The icon TRAILS, because sharing leaves the app for Messages. A
+             trailing icon is an action or a direction; a leading one is
+             informational, which is what CHALK-153's status icons are. -->
+        <button class="btn tertiary" id="shareBtn">Share<svg class="trail"
+          viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7"/><path
+          d="M9 7h8v8"/></svg></button>
       </div>
-      <div class="subline" id="logSub"></div>
     </header>
     <hr class="rule">
     <div class="pad">
@@ -3877,19 +3918,23 @@ function todaysGameSummary(){
 function renderGameCard(){
   var host=el('gameCard'); if(!host) return;
   var live=gameIsLive();
+  var g=todaysGameSummary();
+  /* CHALK-151 revised. ONLY when there is a game. No game today means no card
+     at all, rather than a card whose only job is to hold a button. */
+  if(!live&&!g.pitchers){ host.innerHTML=''; host.hidden=true; return; }
+  host.hidden=false;
   var opp=opponentOn(todayStr());
-  var who=opp||(live?'Game in progress':'No game scheduled today');
-  var state, action;
-  if(live){
-    state='Game in progress';
-    action='<button class="btn primary wide" id="endGameBtn">End game</button>';
-  }else{
-    var g=todaysGameSummary();
-    state=g.pitchers
-      ? ('Ended \u00b7 '+g.pitchers+' pitcher'+(g.pitchers===1?'':'s')+' \u00b7 '+g.pitches)
-      : 'Nothing logged today';
-    action='<button class="btn wide" id="shareBtn">Share availability</button>';
-  }
+  var who=opp||(live?'Game in progress':'Today\u2019s game');
+  var state=live
+    ? 'Game in progress'
+    : ('Ended \u00b7 '+g.pitchers+' pitcher'+(g.pitchers===1?'':'s')+
+       ' \u00b7 '+g.pitches+' pitch'+(g.pitches===1?'':'es'));
+  /* End game belongs to a game. Share does not, and has left this card. An
+     ended game has nothing left to do, so it carries no button. */
+  /* the slot is always present; only the button comes and goes */
+  var action='<div class="gcact">'+
+    (live?'<button class="btn primary wide" id="endGameBtn">End game</button>':'')+
+    '</div>';
   host.innerHTML=
     '<div class="gctop">'+
       '<div class="gcwho"><span class="gcopp">'+esc(who)+'</span>'+
@@ -3898,8 +3943,7 @@ function renderGameCard(){
         '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1"/>'+
         '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>'+
       '</button>'+
-    '</div>'+
-    '<div class="gcact">'+action+'</div>';
+    '</div>'+action;
 }
 
 function renderLog(){
@@ -4570,11 +4614,8 @@ function renderHeaders(){
       (ng?('  \u00b7  Next game '+whenLabel(ng)):'')
     : 'No players yet';
 
-  var unsent=S.outings.filter(function(o){return !o.synced;}).length;
-  el('logSub').textContent=!S.outings.length
-    ? 'No outings yet'
-    : S.outings.length+' outing'+(S.outings.length===1?'':'s')+
-      (unsent?(', '+unsent+' not sent yet'):', all in the sheet');
+  /* CHALK-151 revised. The Log heading carries no subtitle. The card says what
+     is happening, and the card only exists when there is a game. */
 
   el('settingsSub').textContent=savedSyncUrl()?'Sheet connected':'No sheet connected';
   if(el('schedSub')) el('schedSub').textContent=scheduleStatus();

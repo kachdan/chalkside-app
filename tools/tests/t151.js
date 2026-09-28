@@ -23,14 +23,29 @@ is(liveSrc!=='',true,'gameIsLive');
 is(sumSrc!=='',true,'todaysGameSummary');
 if(fail){ console.log('\n  No game card in this build.\n\nFAILED '+fail+' of '+(pass+fail)); process.exit(1); }
 
-console.log('\n=== 1. ONE card, two states, one action each ===');
-is(/End game/.test(cardSrc)&&/Share availability/.test(cardSrc),true,'both actions live in the card');
-var live=cardSrc.slice(cardSrc.indexOf('if(live)'),cardSrc.indexOf('}else{'));
-var ended=cardSrc.slice(cardSrc.indexOf('}else{'));
-is(/End game/.test(live)&&!/Share availability/.test(live),true,'live offers only End game');
-is(/Share availability/.test(ended)&&!/End game/.test(ended),true,'ended offers only Share availability');
+console.log('\n=== 1. the card belongs to a GAME, and only exists with one ===');
+is(/if\(!live&&!g\.pitchers\)/.test(cardSrc),true,
+   'no game today means no card at all, not a card holding a button');
+is(/No game scheduled today/.test(cardSrc),false,'the empty state is gone');
+is(/End game/.test(cardSrc),true,'live still ends the game from inside the card');
+is(/Share availability/.test(cardSrc),false,
+   'Share has LEFT the card: it is about the roster today, not about this game');
+is(/gcact/.test(cardSrc)&&/live\s*\?/.test(cardSrc),true,
+   'and an ended game carries no button, because it has nothing left to do');
 
-console.log('\n=== 2. the action is INSIDE the card ===');
+console.log('\n=== 2. Share is on the heading, Tertiary, icon TRAILING ===');
+var headline=app.slice(app.indexOf('<div class="headline">'),
+                       app.indexOf('</header>',app.indexOf('<div class="headline">')));
+is(/id="shareBtn"/.test(headline),true,'Share sits on the Log heading, every day');
+is(/class="btn tertiary"/.test(headline),true,'as a Tertiary: labelled, quiet, already in the system');
+var btn=headline.slice(headline.indexOf('id="shareBtn"'));
+is(btn.indexOf('Share')<btn.indexOf('<svg'),true,
+   'the icon TRAILS the label, because sharing leaves the app for Messages');
+
+console.log('\n=== 2b. and the heading carries no subtitle ===');
+is(/id="logSub"/.test(app),false,'no subtitle under Log: the card says what is happening');
+
+console.log('\n=== 3. the action is INSIDE the card ===');
 is(cardSrc.indexOf('gcact')>-1,true,'there is an action slot in the card markup');
 is(/class="gamecard"/.test(app),true,'and the card is one tinted element');
 var cardCss=app.slice(app.indexOf('.gamecard{'),app.indexOf('.gamecard .gctop'));
