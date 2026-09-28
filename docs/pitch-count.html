@@ -2047,26 +2047,101 @@ function futureGames(){
   return u;
 }
 
-function shareText(target){
-  var opp=opponentOn(target);
-  var head=(teamName()||'Team')+' \u2014 '+pretty(target)+(opp?(' '+opp):'');
-  var can=[],cant=[];
-  S.roster.forEach(function(p){
-    var a=availabilityOn(p.id,target);
-    var num=p.number?p.number+' ':'';
-    var line='  '+num+p.name+' \u2014 '+a.why;
-    /* innings caught only bear on eligibility for the game being played now,
-       so they only appear when the target IS that game */
-    if(target===todayStr()){
-      var c=caughtThisGame(p.id);
-      if(c>0) line+=', '+c+' inning'+(c===1?'':'s')+' caught';
-    }
-    (a.ok?can:cant).push(line);
+/* CHALK-150. The next GAME on or after a date, as a schedule entry. The return
+   in the message is always a game, never a bare date: a coach plans around
+   fixtures, and "back Tuesday" is only useful if Tuesday is when you play. */
+function gameOnOrAfter(date){
+  var hit=null;
+  schedule().forEach(function(e){
+    if(e.kind!=='game') return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(e.date||'')) return;
+    if(e.date<date) return;
+    if(!hit||e.date<hit.date) hit=e;
   });
-  var out=head+'\n';
-  out+='\nCAN PITCH\n'+(can.length?can.join('\n'):'  nobody');
-  out+='\n\nCANNOT\n'+(cant.length?cant.join('\n'):'  nobody');
-  return out;
+  return hit;
+}
+function gameLabel(e){
+  if(!e) return '';
+  var opp=opponentOn(e.date);
+  return pretty(e.date)+(opp?(' '+opp):'');
+}
+/* Sat, Thu. Day names inside the lines: the date is at the top and repeating it
+   beside every name is noise. */
+function dayName(dateStr){
+  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][parseD(dateStr).getDay()];
+}
+/* First names, the way he talks about them, with a last initial ONLY if two
+   boys share one. A message that says "Jase" twice is worse than one that says
+   "Jase T". */
+function shareName(p,roster){
+  var first=String(p.name||'').trim().split(' ')[0];
+  var clash=roster.filter(function(q){
+    return q.id!==p.id&&String(q.name||'').trim().split(' ')[0]===first;
+  }).length>0;
+  if(!clash) return first;
+  var parts=String(p.name||'').trim().split(' ');
+  return parts.length>1?(first+' '+parts[parts.length-1].charAt(0)):first;
+}
+
+/* CHALK-150. EXCEPTIONS, NOT A ROSTER. Coaches want who CANNOT pitch, at a
+   glance, in a text preview. Availability is the default, so an available
+   player is never named.
+
+   Three shapes, and the message picks one:
+     nobody out            the whole thing is a single line
+     all back for one game the return is said once, at the end
+     different games       the return moves beside each name
+
+   Plain text, because it is pasted into Messages. */
+function shareText(target){
+  var head=pretty(target)+(opponentOn(target)?(' '+opponentOn(target)):'');
+  var out=[], can=0;
+  S.roster.forEach(function(p){
+    /* the engine decides who is out, not this function */
+    if(availabilityOn(p.id,target).ok){ can++; return; }
+    var d=lastPitchingDay(p.id);
+    var back=d?gameOnOrAfter(eligibleDate(d.date,d.pitches)):null;
+    out.push({p:p,threw:d,back:back,
+              /* the GAME is the identity, never the rendered string: two paths
+                 can produce the same words and still be different fixtures, and
+                 the same fixture can be reached two ways */
+              backKey:back?back.date:(d?eligibleDate(d.date,d.pitches):'')});
+  });
+
+  if(!out.length){
+    return head+', all '+S.roster.length+' can pitch.';
+  }
+
+  var names=out.map(function(o){ return shareName(o.p,S.roster); });
+  /* NOT called pad: there is a global pad() zero-padding helper that todayStr
+     and addDays depend on, and a var of that name here shadows it inside this
+     function. That exact collision took todayStr down once already. */
+  var widest=0;
+  names.forEach(function(n){ if(n.length>widest) widest=n.length; });
+  function padded(n){ while(n.length<widest) n+=' '; return n; }
+
+  var keys={}; out.forEach(function(o){ keys[o.backKey]=true; });
+  var oneReturn=(out.length>1&&Object.keys(keys).length===1);
+
+  var body=head+'\n\nCan\u2019t pitch';
+  out.forEach(function(o,i){
+    var threw=o.threw?('threw '+o.threw.pitches+' '+dayName(o.threw.date))
+                     :availabilityOn(o.p.id,target).why;
+    var line='\n  '+padded(names[i])+'  '+threw;
+    if(!oneReturn){
+      line+=o.back?('   back '+gameLabel(o.back))
+                  :(o.threw?('   back '+pretty(eligibleDate(o.threw.date,o.threw.pitches))):'');
+    }
+    body+=line;
+  });
+
+  if(oneReturn){
+    var b=out[0].back;
+    body+='\n\n'+(out.length===2?'Both':'All')+' clear for '+
+          (b?gameLabel(b):pretty(out[0].backKey))+'.';
+  }
+  if(can>0) body+=(oneReturn?'\n':'\n\n')+'Everyone else is good.';
+  return body;
 }
 
 var shareTarget=null;
@@ -2086,17 +2161,31 @@ function openShare(){
       return '<button class="seg'+(d===shareTarget?' on':'')+'" data-sharedate="'+d+'">'+
              esc(pretty(d))+(opp?' <span class="muted">'+esc(opp)+'</span>':'')+'</button>';
     }).join('')+'</div>';
+  /* CHALK-150. ONE button, and it opens the PHONE'S OWN share sheet. Not two
+     custom buttons for copy and Messages: the Lucide share icon is the iOS
+     share icon, and that icon promises the system sheet. Whatever he actually
+     uses, the group thread, AirDrop, a different app, is already in there and
+     is not ours to enumerate.
+
+     Where navigator.share does not exist, it falls back to the clipboard and
+     says so, rather than offering a button that does nothing. */
   h+='<div class="sharePrev" id="sharePrev">'+esc(shareText(shareTarget))+'</div>'+
-     '<button class="btn primary wide" style="margin-top:12px" id="shareCopy">Copy</button>'+
+     '<button class="btn primary wide" style="margin-top:12px" id="shareGo">Share</button>'+
      '<button class="btn wide" style="margin-top:8px" data-close="1">Close</button>';
   el('sheetInner').innerHTML=h;
   openSheet();
-  el('shareCopy').addEventListener('click',function(){
-    var txt=shareText(shareTarget), btn=el('shareCopy');
-    function copyLabel(ok){ btn.textContent=ok?'Copied':'Could not copy, select the text above'; }
+  el('shareGo').addEventListener('click',function(){
+    var txt=shareText(shareTarget), btn=el('shareGo');
+    if(navigator.share){
+      /* a dismissed share sheet rejects, and that is not a failure worth
+         reporting: he changed his mind */
+      try{ navigator.share({text:txt}).catch(function(){}); return; }catch(e){}
+    }
     try{
-      navigator.clipboard.writeText(txt).then(function(){copyLabel(true);},function(){copyLabel(false);});
-    }catch(e){ copyLabel(false); }
+      navigator.clipboard.writeText(txt).then(
+        function(){ btn.textContent='Copied'; },
+        function(){ btn.textContent='Could not copy, select the text above'; });
+    }catch(e){ btn.textContent='Could not copy, select the text above'; }
   });
 }
 /* CHALK-119. Shown before anything is written, and it says how many rows it

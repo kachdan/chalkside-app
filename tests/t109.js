@@ -58,22 +58,30 @@ S.outings=[{id:'a',pitcherId:'p1',date:'2026-09-14',game:1,pitches:77},
            {id:'b',pitcherId:'p2',date:'2026-09-14',game:1,pitches:40}];
 var txt=shareText('2026-09-17');
 console.log('\n----- exact output -----\n'+txt+'\n------------------------');
-is(txt.split('\n')[0],'Test Team — Thu Sep 17 vs Northside Runners','header names the opponent');
-is(txt.indexOf('CAN PITCH')>-1&&txt.indexOf('CANNOT')>-1,true,'both blocks present');
-is(txt.indexOf('11 Alpha One — 77 on Mon Sep 14, needs 3 days, not clear until Fri Sep 18')>-1,true,'who cannot, and why');
-is(txt.indexOf('33 Charlie Three — no outings logged')>-1,true,'who can, and why');
+is(txt.split('\n')[0],'Thu Sep 17 vs Northside Runners','header names the opponent');
+/* CHALK-150 replaced the two-block CAN PITCH / CANNOT roster with an
+   exceptions-only message, so the SHAPE of the body is tested in t150 now, not
+   here. What stays here is the part CHALK-109 owns and 150 did not touch: that
+   the opponent comes out of the schedule feed. Do not re-add body assertions to
+   this suite; two suites asserting one format is how a format ends up half
+   changed. */
+is(txt.indexOf('Alpha One')>-1||txt.indexOf('Alpha')>-1,true,'the unavailable player is still named');
 
 console.log('\n=== 7. no schedule: falls back to a date and the wording adapts ===');
 setSchedule([]);
 var t2=shareText('2026-09-17');
-is(t2.split('\n')[0],'Test Team — Thu Sep 17','no opponent named when the schedule does not know one');
+is(t2.split('\n')[0],'Thu Sep 17','no opponent named when the schedule does not know one');
 is(futureGames(),[],'and nothing is offered as a game');
 
 console.log('\n=== 8. innings caught appear only where they affect eligibility ===');
 reset();
 S.game.innings=[{p:null,c:'p2'},{p:null,c:'p2'}];
 S.game.inning=2;
-is(shareText(TODAY).indexOf('2 innings caught')>-1,true,'shown when the target is tonight');
+/* Two caught innings do NOT block pitching: the limit is more than three. Under
+   CHALK-109 the message annotated him anyway, because it listed the whole
+   roster. Under CHALK-150 he is available, and an available player is not in
+   the message at all, so the note is correctly gone. */
+is(shareText(TODAY).indexOf('2 innings caught')>-1,false,'an available catcher is not annotated');
 is(shareText('2026-09-17').indexOf('innings caught')>-1,false,'absent when the target is a future game');
 
 console.log('\n'+(fail?'FAILED '+fail+' of '+(pass+fail):'ALL '+pass+' PASSED'));

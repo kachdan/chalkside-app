@@ -682,6 +682,21 @@ is `hidden` while a tab is driven by automation, so the `visibilitychange`
 handler early-returns; call `rolloverIfNewDay()` directly or the test proves
 nothing.
 
+### A suite that catches every known-bad is red, not thorough
+
+`prove.sh` prints a `caught by` column. Read the column, not the green line at
+the bottom. A suite whose name appears against every single break is almost
+never the most thorough suite: it is failing on the real app too, so it fails
+on anything. t109 sat like that through CHALK-150 and the summary line still
+said every break was caught.
+
+The cause each time is a spec that moved. CHALK-150 replaced the two-block
+CAN PITCH / CANNOT message with an exceptions-only one, and the CHALK-109 suite
+went on asserting the old shape. When a ticket changes a format, the suite that
+asserted the old format is part of the ticket. Retarget it in the same commit,
+and leave the format asserted in exactly ONE suite: two suites owning one
+format is how a format ends up half changed.
+
 ## Handoff (standing rule)
 
 Two files, one each way. Do not confuse them.
