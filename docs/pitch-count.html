@@ -98,6 +98,24 @@
      surface/control measures 4.31 and fails; this is the value that does not.
      Secondary and Tertiary danger labels use it. */
   --status-stop-on-control:#DC0C1D;   /* red/600, 4.68 on control in Light */
+
+  /* CHALK-153. The same lesson as CHALK-140, now for green and amber: these
+     used to be text on a TINT OF THEMSELVES inside a chip, and the chip is
+     gone, so they are text on surface/control. Measured there, the page values
+     fail: safe 3.24 and caution-strong 3.31 against a 4.5 floor at 13.5px.
+
+     THESE TWO ARE NOT FROM FIGMA and are flagged for Dan, like the red pair.
+     Light only; Dark's existing values already pass on a control, 6.08 and
+     5.94, so they are reused rather than darkened for symmetry's sake.
+
+         safe        #3F9A4D  3.24 FAIL   ->  #2E7D3A  4.68 pass
+         caution     #B77A15  3.31 FAIL   ->  #8A5A00  5.43 pass
+
+     #9A6510 also passes at 4.54 and was rejected: CHALK-140 was decided on the
+     margin twice and a value that close to the floor is one rounding away from
+     failing. */
+  --status-safe-on-control:#2E7D3A;
+  --status-caution-on-control:#8A5A00;
   /* reserved, currently unused. CHALK-140 made this worse, not better: brand
      is now the blue family, so status/info is the same hue as the brand and
      cannot mean anything on its own. Do not reach for it. */
@@ -189,6 +207,9 @@
   --status-caution-strong:#C98E22;
   --status-stop:#E8434F;              /* unchanged: text and borders on page */
   --status-stop-on-control:#FF4541;   /* red/500, 4.98 on surface/control */
+  /* CHALK-153. Dark already passes on a control: 6.08 and 5.94. */
+  --status-safe-on-control:#4FAE5D;
+  --status-caution-on-control:#C98E22;
   --status-info:#5B93FF;
 
   /* CHALK-129. The ticket that "the pair is tight in Light" became.
@@ -557,7 +578,14 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
   display:block;font-family:inherit;font-size:19px;font-weight:500;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.prow .psub{display:block;font-size:13.5px;color:var(--text-secondary);margin-top:2px;}
+.prow .psub{
+  display:block;font-size:13.5px;color:var(--text-secondary);margin-top:2px;
+  /* CHALK-153. One line, always. A wrapped sub line makes the row taller than
+     its neighbours and breaks the scan down the column. */
+  white-space:nowrap;overflow:hidden;text-overflow:clip;
+}
+/* never an empty line: "Has not pitched", in tertiary */
+.prow .psub.none{color:var(--text-tertiary);}
 .prow>.tag,.prow>.stepper,.prow>.btn{flex:0 0 auto;}
 /* CHALK-137. The strip is itself the catcher target, 48 tall, contents CENTRED
    rather than spread, with the inning tag nested inside it as a second target.
@@ -653,6 +681,33 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 /* Text is the same hue darkened towards --ink so it reads against its own
    tint. Without color-mix it falls back to the plain token, which is why
    warn falls back to the dark caution token rather than the bright one. */
+/* CHALK-153. The STATUS is the answer; the name is only how you find the line.
+   So the status sits on the right, as icon plus coloured text, with NO chip and
+   no fill: eleven filled shapes down one edge is a pattern, not a signal, and
+   the eye stops reading it.
+
+   THREE SHAPES, NOT THREE COLOURS. Colour is never the only carrier, because a
+   coach with a colour vision deficiency has to get the same answer. Desaturate
+   a screenshot of the list and the tick, the clock and the barred circle are
+   still three different things.
+
+   The icon LEADS: a leading icon is informational, a trailing one is an action
+   or a direction. This one describes, so it leads. */
+.status{
+  display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;
+  font-size:13.5px;font-weight:600;white-space:nowrap;
+}
+.status svg{
+  width:15px;height:15px;flex:0 0 auto;
+  stroke:currentColor;stroke-width:2.25;fill:none;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+/* the same three semantics the chip used, as text on the card rather than on a
+   tint of themselves */
+.status.ok{color:var(--status-safe-on-control);}
+.status.warn{color:var(--status-caution-on-control);}
+.status.no{color:var(--status-stop-on-control);}
+
 .tag.ok{color:var(--status-safe);}
 .tag.warn{color:var(--status-caution-strong);}
 .tag.no{color:var(--status-stop);}
@@ -1444,6 +1499,80 @@ function save(){
    no benefit. */
 var S=load()||{roster:[],outings:[],game:null,opp:0};
 if(!S.opp) S.opp=0;
+
+/* CHALK-153. Three shapes for three states, Lucide, inlined like every other
+   icon in this file so it works with no signal at the field.
+
+     check   clear to pitch
+     clock   back before the next game
+     ban     misses the next game, or blocked for another reason
+
+   Keyed off the SAME cls the rules engine already returns, so the shape and the
+   colour can never disagree and nothing about eligibility is re-derived here. */
+function statusIcon(cls){
+  if(cls==='ok') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+  if(cls==='warn') return '<svg viewBox="0 0 24 24" aria-hidden="true">'+
+    '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>';
+  return '<svg viewBox="0 0 24 24" aria-hidden="true">'+
+    '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></svg>';
+}
+function statusCell(av){
+  return '<span class="status '+av.cls+'">'+statusIcon(av.cls)+
+         '<span>'+esc(av.tag)+'</span></span>';
+}
+
+/* CHALK-153. The most recent pitching DAYS, newest first, with the day's total.
+   Days, not outings: two appearances on one date are one day's work and the
+   rest calculation already treats them that way. */
+function recentPitchingDays(pid,n){
+  var byDate={}, dates=[];
+  S.outings.forEach(function(o){
+    if(o.pitcherId!==pid) return;
+    if(!byDate[o.date]){ byDate[o.date]=0; dates.push(o.date); }
+    byDate[o.date]+=(+o.pitches||0);
+  });
+  dates.sort(); dates.reverse();
+  return dates.slice(0,n||2).map(function(d){ return {date:d,pitches:byDate[d]}; });
+}
+
+/* "Wed 43 pitches", or two days when they fit. DAY FIRST, so two of them read
+   as a series: count first gives "43 Wed 12 Sat", which has to be parsed rather
+   than scanned. "pitches" is spelled out because a bare number beside a name
+   reads as a jersey. */
+function historyLine(pid){
+  var days=recentPitchingDays(pid,2);
+  if(!days.length) return {full:'Has not pitched',shortText:'Has not pitched',none:true};
+  var one=dayLabel(days[0].date)+' \u00b7 '+days[0].pitches+' pitches';
+  if(days.length<2) return {full:one,shortText:one,none:false};
+  return {full:dayLabel(days[0].date)+' \u00b7 '+days[0].pitches+
+               ' \u00b7 '+dayLabel(days[1].date)+' \u00b7 '+days[1].pitches,
+          shortText:one,none:false};
+}
+function dayLabel(dateStr){
+  var d=parseD(dateStr);
+  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+}
+
+/* CHALK-153. THE TWO-OUTING CASE, which is the one that breaks. A long name
+   plus two days crowds 394px, and the answer is the most recent day alone, on
+   ONE line. Never wrapped to two: the sub line is scanned down a column, and a
+   row that is taller than its neighbours breaks the scan.
+
+   Measured from what was actually painted. scrollWidth against clientWidth on
+   a nowrap element is the browser reporting that the text did not fit, which
+   is the only authority on a question about a name, a width and a font. One
+   pass over the list, after it is in the DOM, so this is a single layout read
+   rather than one per row. */
+function fitHistoryLines(host){
+  var subs=host.querySelectorAll('.psub[data-short]');
+  for(var i=0;i<subs.length;i++){
+    var el_=subs[i];
+    if(el_.scrollWidth>el_.clientWidth+1){
+      var short=el_.getAttribute('data-short');
+      if(short&&short!==el_.textContent) el_.textContent=short;
+    }
+  }
+}
 
 function jerseyTag(p){
   return '<span class="jersey">'+esc((p&&p.number)?p.number:'\u2013')+'</span>';
@@ -3603,14 +3732,21 @@ function renderTeam(){
   if(!S.roster.length){ a.innerHTML='<div class="empty">Add players on the Roster tab first.</div>'; el('catchList').innerHTML=''; return; }
   a.innerHTML=S.roster.map(function(p){
     var av=pitchEligibility(p.id);
+    var h=historyLine(p.id);
+    /* Rendered with the LONGER line and a short one held beside it. Whether two
+       days fit is a question about painted pixels at this width with this name,
+       which no arithmetic here can answer, so it is asked of the layout below
+       rather than guessed. */
     return '<div class="card"><div class="prow">'+jerseyTag(p)+
       '<div class="ptext">'+
         '<div class="pname">'+esc(p.name)+'</div>'+
-        '<div class="psub">'+esc(av.why)+'</div>'+
+        '<div class="psub'+(h.none?' none':'')+'" data-short="'+esc(h.shortText)+'">'+
+          esc(h.full)+'</div>'+
       '</div>'+
-      '<span class="tag '+av.cls+'">'+esc(av.tag)+'</span>'+
+      statusCell(av)+
       '</div></div>';
   }).join('');
+  fitHistoryLines(a);
 
   el('catchList').innerHTML=S.roster.map(function(p){
     var n=caughtThisGame(p.id);
