@@ -25,6 +25,10 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 DOCS = os.path.join(os.path.dirname(HERE), 'docs')
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8001
+# 127.0.0.1 by default. Pass --lan to bind every interface so a phone on the
+# same wifi can reach it. LAN only, never a public address: this serves an
+# unfinished build and a stand-in sheet.
+HOST = '0.0.0.0' if '--lan' in sys.argv else '127.0.0.1'
 
 ROSTER_HEAD = ['Jersey', 'First', 'Last', 'Team']
 FULL = [
@@ -37,7 +41,27 @@ FULL = [
 ]
 GL_HEAD = ['Date', 'Number', 'Name', 'Pitches', 'Opponent',
            'Clear to pitch', 'Logged at', 'Id']
-STATE = {'roster': [r[:] for r in FULL], 'gamelog': [], 'writes': [], 'refusals': []}
+# A Schedule tab, so the preview shows the opponent in the game card and the
+# CHALK-141 top/bottom triangle has a vs or @ to read. The real Apps Script
+# fills this from the ICS feed; here it is fixed.
+SCHED_HEAD = ['Date', 'Title']
+# A game already played TODAY, so a restore lands on the ended card straight
+# away and starting a new outing shows the live one. Invented names.
+import datetime as _dt
+_T = _dt.date.today().isoformat()
+_D = lambda n: (_dt.date.today() - _dt.timedelta(days=n)).isoformat()
+SEED_LOG = [
+    [_T,    1,  'Abe Marlow',  40, 'vs MH Rangers', _D(-2), 'now', 'g1'],
+    [_T,    3,  'Cyrus Denby', 70, 'vs MH Rangers', _D(-3), 'now', 'g2'],
+    [_D(3), 7,  'Dorian Elvey', 22, '@ Eastvale',   _D(2),  'now', 'g3'],
+]
+SEED_SCHED = [
+    [_T,    'vs MH Rangers'],
+    [_D(3), '@ Eastvale'],
+    [_D(-3), '@ Itaa 12u Vols'],
+]
+STATE = {'roster': [r[:] for r in FULL], 'gamelog': [r[:] for r in SEED_LOG],
+         'writes': [], 'refusals': []}
 
 
 def rows(head, data):
@@ -57,10 +81,14 @@ class H(SimpleHTTPRequestHandler):
                 return self.json(STATE)
             if act == '__reset':
                 STATE['roster'] = [r[:] for r in FULL]
-                STATE['gamelog'] = []
+                STATE['gamelog'] = [r[:] for r in SEED_LOG]
                 STATE['writes'] = []
                 STATE['refusals'] = []
                 return self.json({'ok': True})
+            if act == 'schedule':
+                # the real script fetches the ICS and writes the tab; here the
+                # tab is already there, so this only has to say it worked
+                return self.json({'ok': True, 'count': len(SEED_SCHED)})
             if act != 'list':
                 return self.text('Pitching logger is running.')
             tab = (q.get('sheet') or ['Game Log'])[0]
@@ -68,6 +96,8 @@ class H(SimpleHTTPRequestHandler):
                 return self.json({'ok': True, 'rows': rows(ROSTER_HEAD, STATE['roster'])})
             if tab == 'Game Log':
                 return self.json({'ok': True, 'rows': rows(GL_HEAD, STATE['gamelog'])})
+            if tab == 'Schedule':
+                return self.json({'ok': True, 'rows': rows(SCHED_HEAD, SEED_SCHED)})
             return self.json({'ok': False, 'error': 'no tab named ' + tab})
         return SimpleHTTPRequestHandler.do_GET(self)
 
@@ -116,5 +146,5 @@ class H(SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    print('dev sheet on http://127.0.0.1:%d serving %s' % (PORT, DOCS))
-    ThreadingHTTPServer(('127.0.0.1', PORT), H).serve_forever()
+    print('dev sheet on http://%s:%d serving %s' % (HOST, PORT, DOCS))
+    ThreadingHTTPServer((HOST, PORT), H).serve_forever()
