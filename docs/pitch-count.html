@@ -627,9 +627,17 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
    flex item still earns the 5px gap. :empty takes it out of layout entirely, so
    an unknown half costs no width and the tag is the same size it was. */
 /* CHALK-157. Sizing lives in CSS like every other icon, rather than as width
-   and height attributes on one of them. */
+   and height attributes on one of them.
+
+   THE BOX IS NOT THE TRIANGLE. The path spans 14 of its 24 grid across and 12
+   down, so an 8px box draws a triangle of only 4.7 by 4.0, and Dan had already
+   rejected this glyph once for being too small. 14px box: 14 x 14/24 = 8.2
+   across, 14 x 12/24 = 7.0 down, which is the 8 by 7 he approved.
+
+   If the path is ever replaced, re-derive this from ITS span. Measure the drawn
+   triangle, never the box. */
 .innhalf{display:flex;align-items:center;}
-.innhalf svg{width:8px;height:8px;display:block;}
+.innhalf svg{width:14px;height:14px;display:block;}
 .innhalf:empty{display:none;}
 .innpill:active{background:var(--brand-primary);color:var(--text-on-accent);}
 .stateline .belief{

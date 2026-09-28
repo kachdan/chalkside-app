@@ -56,6 +56,23 @@ is(/data-icon="half-bottom"/.test(halfGlyph('bottom')),true,'bottom is half-bott
 is(halfGlyph('top').indexOf('M12 5l7 12H5z')>-1,true,'and it still points up');
 is(halfGlyph('bottom').indexOf('M12 19l7-12H5z')>-1,true,'and down');
 
+console.log('\n=== 3b. THE BOX IS NOT THE TRIANGLE ===');
+/* The path spans 14 of its 24 grid across and 12 down, so the drawn triangle is
+   box * 14/24 by box * 12/24. At 8px that is 4.7 by 4.0, which Dan rejected
+   once for being too small. 14px gives 8.2 by 7.0, which he approved. If the
+   path changes, re-derive the box from ITS span. */
+var halfCss=/\.innhalf svg\{([^}]*)\}/.exec(app);
+is(halfCss!==null,true,'the half marker has a size rule');
+var boxPx=halfCss?parseFloat(/width:(\d+(?:\.\d+)?)px/.exec(halfCss[1])[1]):0;
+is(boxPx,14,'rendered in a 14px box');
+var span={w:14,h:12};   /* M12 5l7 12H5z spans x 5..19 and y 5..17 */
+var drawnW=Math.round(boxPx*span.w/24*100)/100;
+var drawnH=Math.round(boxPx*span.h/24*100)/100;
+is(Math.abs(drawnW-8)<=0.25,true,'so the drawn triangle is 8 across, got '+drawnW);
+is(drawnH,7,'and 7 down');
+is(/M12 5l7 12H5z/.test(app)&&/M12 19l7-12H5z/.test(app),true,
+   'and the paths are the ones that span was measured from');
+
 console.log('\n=== 4. the advance is wired to the half, not to the tab ===');
 var goSrc=H.grab(app,'go');
 is(/homeAwayOn/.test(goSrc),true,'go() asks whether we are home or away');
