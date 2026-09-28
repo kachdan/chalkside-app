@@ -12,7 +12,7 @@
 var fs = require('fs');
 var path = require('path');
 
-var APP = path.join(__dirname, '..', '..', 'docs', 'pitch-count.html');
+var APP = path.join(__dirname, '..', 'docs', 'pitch-count.html');
 
 function appSource(){
   return fs.readFileSync(process.env.APP || APP, 'utf8');
@@ -64,6 +64,33 @@ function iconRuntime(src){
          grab(src, 'icon');
 }
 
+/* CHALK-148. The whole rules engine, ready to call, with the constants it
+   needs. The constants live OUTSIDE the region the slice takes, so a suite that
+   eval'd the region alone got a ReferenceError on MAX, which is how these were
+   awkward enough to keep in /tmp in the first place.
+
+   Nothing is redefined here. MAX, BRACKETS and DAY_SCOPED_MOUND are read out of
+   the app, so a suite cannot quietly test different numbers from the ones that
+   ship. That was the whole CHALK-102 failure: a second copy of a rule. */
+/* A whole `var NAME=...;` LINE. Matching up to the first semicolon looks
+   right and is wrong: SEP is '[,;:.-]' and the semicolon inside the character
+   class cut the declaration in half, which then failed to parse. Take the
+   line. */
+function constLine(src, name){
+  var m = new RegExp('^var ' + name + '=.*$', 'm').exec(src);
+  if(!m) throw new Error('harness: missing var ' + name + ', it moved or was renamed');
+  return m[0];
+}
+
+function rulesRuntime(src){
+  var out=[];
+  ['MAX','DAY_SCOPED_MOUND','BRACKETS'].forEach(function(n){
+    out.push(constLine(src, n));
+  });
+  out.push(rulesRegion(src));
+  return out.join('\n');
+}
+
 /* A localStorage that behaves like the real one for the keys this app uses. */
 function fakeStorage(){
   var store = {};
@@ -76,4 +103,5 @@ function fakeStorage(){
 
 module.exports = { APP: APP, appSource: appSource, rulesRegion: rulesRegion,
                    grab: grab, varBlock: varBlock, iconRuntime: iconRuntime,
+                   rulesRuntime: rulesRuntime, constLine: constLine,
                    fakeStorage: fakeStorage };

@@ -3,3 +3,9 @@ files.zip
 node_modules/
 *.log
 .vscode/*.local.json
+
+# CHALK-148. The known-bad builds are GENERATED from the current app by
+# tests/make-known-bad.js, which prove.sh runs first. Committing them would be
+# 2MB of near-duplicate HTML that goes stale against the build it is meant to
+# test, which is the failure make-known-bad already refuses to produce.
+tests/known-bad/*.html

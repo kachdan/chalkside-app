@@ -313,6 +313,34 @@ The last one is the reason for the rule. It would have shipped green.
 Intent files live in https://github.com/kachdan/chalkside-intent (private), one
 per ticket, written before the work starts.
 
+### Tests live in the repo, and the runner says what it found
+
+CHALK-148. Six suites lived in `/tmp`, the OS cleaned it, and they were gone for
+a week while five tickets each reported "the rules checks could not be re-run".
+Nothing failed. A runner that finds no tests reports no failures, which is the
+quietest way for verification to stop existing.
+
+- **`tests/` at the repo root**, outside `docs/` so Pages never serves it.
+  Anything in `/tmp` or a scratch directory is disposable by definition. So is
+  anything that only exists on one machine: if a fresh clone cannot run it, it
+  does not exist.
+- **One command, `./tests/run.sh`**, and it PRINTS THE ROSTER AND THE ASSERTION
+  COUNT every time, not just the word PASSED. A missing suite has to be visible
+  rather than discovered.
+- **`tests/prove.sh` runs every suite against deliberately broken builds** and
+  reports which suites noticed. A break nothing notices is printed as a gap, not
+  a pass. The broken builds are GENERATED from the current app by
+  `make-known-bad.js`, never committed, so they cannot go stale against the
+  build they test; it refuses to write one whose anchor has moved.
+- **A known-bad that is not actually bad proves nothing.** The first schedule
+  break removed a pattern that `eventKind` already fell through to anyway, so it
+  moved no answer and nothing caught it. prove.sh reported the gap and the break
+  was the thing at fault. Check that your break changes an ANSWER.
+- **Never redefine a rule constant in a suite.** The harness reads MAX, BRACKETS
+  and DAY_SCOPED_MOUND out of the app, so a test cannot quietly assert against
+  different numbers from the ones that ship. A second copy of a rule is how
+  CHALK-102 shipped three answers to one question.
+
 ### A check you have not seen fail is not a check
 
 **Every new check is committed alongside proof that it fails on a known-bad
