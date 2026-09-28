@@ -35,10 +35,23 @@ echo "  $files suites, $total assertions, $skipped skipped, $bad failing"
 
 echo ""
 echo "CHECKS"
-printf '  syntax      '; "$ROOT"/tools/check-syntax.sh | tail -1
-printf '  names       '; "$ROOT"/tools/check-names.sh | tail -2 | head -1
-printf '  icons       '; node "$ROOT"/tools/check-icons.js | tail -1
-printf '  version     '; "$ROOT"/tools/check-version.sh >/dev/null 2>&1 && echo "cache version guard ok" || echo "BLOCKED"
+# CHALK-158. These used to print and move on. check-version.sh could say
+# BLOCKED and run.sh still ended green, which is most of why six releases
+# shipped behind a stale worker. A check that cannot fail the run is decoration.
+check(){
+  label="$1"; shift
+  if out=$("$@" 2>&1); then
+    printf '  %-11s %s\n' "$label" "$(printf '%s\n' "$out" | tail -1)"
+  else
+    bad=$((bad+1))
+    printf '  %-11s FAILED\n' "$label"
+    printf '%s\n' "$out" | sed 's/^/                /'
+  fi
+}
+check syntax  "$ROOT"/tools/check-syntax.sh
+check names   "$ROOT"/tools/check-names.sh
+check icons   node "$ROOT"/tools/check-icons.js
+check version "$ROOT"/tools/check-version.sh
 
 echo ""
 echo "PROOF that the suites can fail"

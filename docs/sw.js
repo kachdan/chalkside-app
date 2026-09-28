@@ -1,13 +1,23 @@
-/* Bump this one number when what gets cached, or how it is served, changes.
-   Nothing else in this file spells the cache name out, and nothing outside it
-   should either.
+/* CHALK-158. BUILD IS STAMPED BY A TOOL. DO NOT EDIT IT BY HAND.
+   
+       tools/stamp-sw.sh        writes it
+       tools/check-version.sh   refuses a release where it is wrong
 
-   It matters more than it looks. A stale worker serves the old build after a
-   successful push, which is indistinguishable from a deploy that failed. On
-   Pages there is no build log to check, so the only symptom is a coach saying
-   the app did not change. */
-var VERSION = 6;
-var CACHE = 'chalkside-v' + VERSION;
+   It is the first 12 hex of the sha256 of docs/pitch-count.html, so it changes
+   on its own whenever the app changes and cannot be forgotten.
+
+   WHY IT STOPPED BEING A NUMBER YOU BUMP. The old rule said a number only
+   needed bumping when the caching strategy changed, because ordinary app
+   changes were supposed to arrive through the background revalidate. Six
+   releases shipped that way, 148, 151, 152, 153, 156 and 157, and not one of
+   them reached a phone. The revalidate ran after the response had already been
+   sent, and a worker that gets killed the moment the page loads never finishes
+   it. Chrome did finish it, on the second open, which is exactly why this
+   survived every test that was not run on the phone.
+
+   A version that has to be remembered gets forgotten. This one is computed. */
+var BUILD = '64a6b1aef0bc';
+var CACHE = 'chalkside-' + BUILD;
 
 /* ChalkSide service worker.
 
@@ -15,16 +25,18 @@ var CACHE = 'chalkside-v' + VERSION;
 
    Two strategies, on purpose:
 
-   - The app HTML is stale while revalidate. A coach gets the cached copy
-     instantly, even with no bars, and a fresh copy is pulled in the
-     background and used on the next open. A deploy therefore lands by
-     itself, one app open later, with nothing to remember.
+   - The app HTML is NETWORK FIRST with a short timeout, falling back to the
+     cache. Online, a coach always gets the build that is actually deployed,
+     on the first open, with nothing running in the background that a phone
+     can cut off. With no bars the fetch times out fast and the cached copy
+     opens, which is the case the whole app exists for.
    - Fonts are cache first and never refetched. Fira Sans does not change,
      and the file URLs carry their own version.
 
-   VERSION at the top only needs bumping if the caching strategy itself
-   changes, meaning what gets cached or how it is served. Ordinary app
-   changes do not need it, they arrive through the revalidate path. */
+   The timeout is what keeps network first honest at a field. A plain network
+   first would make the app hang on a dead connection before falling back, and
+   the app opening instantly with no signal is the requirement that outranks
+   freshness. */
 
 /* The app itself. Only the real file is cached. '/' is deliberately NOT in
    here: what the root returns is the server's business (netlify.toml rewrites
@@ -32,8 +44,9 @@ var CACHE = 'chalkside-v' + VERSION;
    fetch handler resolves navigations to APP instead of trusting it. */
 var APP = './pitch-count.html';
 
-/* The app plus everything it needs to render and install as an app. Adding
-   or removing anything here is a caching change, so bump VERSION with it. */
+/* The app plus everything it needs to render and install as an app. The cache
+   name carries the app's own hash, so a new build gets a new cache and these
+   are all refetched with it. */
 var SHELL = [
   APP,
   './manifest.json',
@@ -88,6 +101,19 @@ function cacheFonts(cache){
   });
 }
 
+/* CHALK-158, the update handover, decided rather than inherited.
+
+   skipWaiting means a new worker never sits in 'waiting'. clients.claim means
+   it takes over pages that are already open. Together they are the "next open"
+   half of the ticket: the worker changes hands immediately and quietly, and
+   because the app is network first the next open renders the new build.
+
+   THERE IS DELIBERATELY NO RELOAD. Claiming a client does not reload it, and
+   nothing in the app listens for controllerchange, so a coach holding the phone
+   mid count keeps the page he is counting on. An "Update ready" banner was the
+   other option in the ticket and is not built: it can only ever fire while he
+   is looking at the app, which is the one moment a reload must not happen, and
+   network first already makes the next open correct without asking him. */
 self.addEventListener('install', function(e){
   e.waitUntil(
     caches.open(CACHE).then(function(cache){
@@ -111,16 +137,45 @@ self.addEventListener('activate', function(e){
   );
 });
 
-/* Background refresh of the app. 'reload' skips the browser HTTP cache so
-   this is a real network read, not a replay of what the phone already had.
-   Failure is the normal offline case and is ignored on purpose. */
-function revalidateApp(){
+/* CHALK-158. How long the app waits for the network before opening from the
+   cache. Short on purpose: a coach standing at a field with one bar must not
+   watch a spinner, and a phone that is really offline usually fails faster
+   than this anyway. The cache still gets the fresh copy when the slow fetch
+   finally lands, so the open after a slow one is current. */
+var NET_TIMEOUT = 2500;
+
+/* A real network read of the app. 'reload' skips the browser HTTP cache so
+   this cannot be answered by the very thing we are trying to get past. The
+   cache is written on every success, which is what makes the offline copy the
+   last build actually seen rather than the build that was current at install. */
+function fetchApp(){
   return fetch(APP, {cache:'reload'}).then(function(res){
-    if(!res || !res.ok) return;
-    return caches.open(CACHE).then(function(cache){
-      return cache.put(APP, res);
+    if(!res || !res.ok) throw new Error('app ' + (res && res.status));
+    caches.open(CACHE).then(function(cache){
+      return cache.put(APP, res.clone());
+    }).catch(function(){});
+    return res;
+  });
+}
+
+/* Network first, cache as the fallback, with the timeout above.
+   The network promise is deliberately still alive after the race is lost: if
+   it lands late it has already written the cache, so nothing is wasted. Its
+   rejection is swallowed separately so a lost race cannot surface as an
+   unhandled rejection in the worker. */
+function appResponse(req){
+  var net = fetchApp();
+  net.catch(function(){});
+  var timeout = new Promise(function(resolve, reject){
+    setTimeout(function(){ reject(new Error('slow')); }, NET_TIMEOUT);
+  });
+  return Promise.race([net, timeout]).catch(function(){
+    return caches.match(APP).then(function(hit){
+      /* no cache and no network in time: the only thing left is to keep
+         waiting on the network, because there is nothing else to show */
+      return hit || net.catch(function(){ return fetch(req); });
     });
-  }).catch(function(){});
+  });
 }
 
 self.addEventListener('fetch', function(e){
@@ -141,22 +196,18 @@ self.addEventListener('fetch', function(e){
      Anything else falls through to the network and fails honestly. A 404 that
      says 404 is worth more than a 200 that lies.
 
-     Stale while revalidate for the app itself is unchanged: serve what we have
-     immediately, then refresh the cached copy in the background so the next
-     open is current. waitUntil is called synchronously here to keep the event
-     alive for that refresh.
+     CHALK-158. The app is now network first with a timeout, not stale while
+     revalidate. The old way put the refresh in waitUntil, AFTER the response
+     had gone out, and a phone that kills the worker at that moment never
+     finishes it. Six releases reached nobody that way. Nothing the freshness
+     of the app depends on may run after the response again.
 
      Note this drops '/' from the fallback. The root serves index.html, which is
      a real page, and a registered worker used to replace it with the app while
      a first visit got the placeholder. That inconsistency was the same bug. */
   if(req.mode === 'navigate'){
     if(!isAppUrl(req.url)) return;          /* the network's business, not ours */
-    e.waitUntil(revalidateApp());
-    e.respondWith(
-      caches.match(APP).then(function(app){
-        return app || fetch(req);
-      })
-    );
+    e.respondWith(appResponse(req));
     return;
   }
 

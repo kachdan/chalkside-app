@@ -1,58 +1,45 @@
 #!/bin/sh
-# Refuses a push that changes WHAT is cached without bumping sw.js VERSION.
+# CHALK-158. Refuses a release whose worker does not match the app it ships.
 #
-# Scope is deliberately narrow. The app HTML is stale-while-revalidate, so an
-# ordinary change to docs/pitch-count.html reaches phones on its own, one app
-# open later, and must NOT trip this. Guarding it would force a bump on every
-# deploy, the cache would be rebuilt every time, and stale-while-revalidate
-# would stop buying anything.
+# WHAT IT REPLACES. This used to guard only "cache first" assets, on the
+# reasoning that ordinary app changes reached phones through the worker's
+# background revalidate and so needed no bump. That reasoning was wrong in the
+# only place it mattered. The revalidate ran after the response was already
+# sent, and a phone that suspends the worker at that moment never finishes it.
+# Six releases, 148 151 152 153 156 and 157, went out and reached nobody, and
+# the check stayed green through all six.
 #
-# What genuinely needs a bump is anything served CACHE-FIRST, because a phone
-# that already installed will never refetch it while the cache name is the
-# same:
-#   - the manifest and the icons
-#   - the SHELL list in sw.js, which is literally what gets cached
-#
-# Other edits to sw.js are self-healing: a byte-different worker installs and
-# activates on its own, so fetch-logic changes take effect without a bump.
-
+# So the check is now the simplest thing that cannot be wrong: the stamp in
+# sw.js must equal the hash of the app being shipped.
 set -e
-REMOTE_REF="${1:-origin/main}"
+# ROOT comes from git, not from $0. This script is ALSO the pre-push hook, via
+# the symlink .git/hooks/pre-push, and there $0 is inside .git/hooks, so
+# dirname/.. resolved to .git and the check failed looking for .git/docs.
+# Caught by the hook refusing a real push, which is the hook doing its job.
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || ROOT=""
+[ -n "$ROOT" ] || ROOT=$(cd "$(dirname "$0")/.." && pwd)
+APP="${CHECK_APP:-$ROOT/docs/pitch-count.html}"
+SW="${CHECK_SW:-$ROOT/docs/sw.js}"
 
-remote_head=$(git rev-parse --verify --quiet "$REMOTE_REF") || exit 0
-[ -z "$remote_head" ] && exit 0
+[ -f "$APP" ] || { echo "FAIL: no app at $APP"; exit 1; }
+[ -f "$SW" ]  || { echo "FAIL: no worker at $SW"; exit 1; }
 
-# Cache-first assets. No revalidate path, so a stale cache name strands them.
-ASSETS="docs/manifest.json docs/favicon.png docs/apple-touch-icon.png docs/icon-192.png docs/icon-512.png"
+want=$(shasum -a 256 "$APP" | cut -c1-12)
+got=$(sed -n "s/^var BUILD = '\([^']*\)';.*/\1/p" "$SW")
 
-version_at() { git show "$1:docs/sw.js" 2>/dev/null | sed -n 's/^var VERSION = \([0-9][0-9]*\);.*/\1/p'; }
-shell_at()   { git show "$1:docs/sw.js" 2>/dev/null | sed -n '/^var SHELL = \[/,/^\];/p'; }
+[ -n "$got" ] || { echo "FAIL: sw.js has no BUILD stamp at all"; exit 1; }
 
-changed=$(git diff --name-only "$remote_head" HEAD -- $ASSETS)
-
-if [ "$(shell_at "$remote_head")" != "$(shell_at HEAD)" ]; then
-  changed=$(printf '%s\n%s\n' "$changed" "docs/sw.js (SHELL list)" | sed '/^$/d')
-fi
-
-[ -z "$changed" ] && exit 0
-
-old=$(version_at "$remote_head")
-new=$(version_at HEAD)
-
-if [ -n "$old" ] && [ "$old" = "$new" ]; then
-  echo "" >&2
-  echo "PUSH BLOCKED: what gets cached changed but sw.js VERSION is still $new." >&2
-  echo "" >&2
-  echo "Changed:" >&2
-  echo "$changed" | sed 's/^/  /' >&2
-  echo "" >&2
-  echo "These are served cache-first, so a phone that already installed will" >&2
-  echo "never refetch them while the cache name is unchanged. Bump VERSION at" >&2
-  echo "the top of docs/sw.js, amend the commit, and push again." >&2
-  echo "" >&2
-  echo "Note: docs/pitch-count.html is NOT guarded. It is stale-while-" >&2
-  echo "revalidate and lands by itself on the next app open." >&2
-  echo "" >&2
+if [ "$got" != "$want" ]; then
+  echo "FAIL: the worker ships a stamp for a different app."
+  echo "      sw.js BUILD          $got"
+  echo "      pitch-count.html is  $want"
+  echo "      Run tools/stamp-sw.sh and commit the result."
   exit 1
 fi
-exit 0
+
+# The cache name must be derived from the stamp, or changing the stamp changes
+# nothing that a phone can see.
+grep -q "^var CACHE = 'chalkside-' + BUILD;" "$SW" || {
+  echo "FAIL: CACHE is not derived from BUILD, so a new stamp reuses the old cache"; exit 1; }
+
+echo "worker stamp $got matches the app it ships"
