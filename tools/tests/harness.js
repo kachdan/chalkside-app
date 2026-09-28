@@ -44,6 +44,26 @@ function grab(src, name){
   throw new Error('harness: unbalanced braces in ' + name);
 }
 
+/* A top level `var NAME={...};` block, for the ones that are data rather than
+   functions. grab() only finds functions, and CHALK-157 put the icon set in a
+   var, so a suite that eval'd statusIcon alone started throwing on `icon`. */
+function varBlock(src, name){
+  var start = src.indexOf('var ' + name + '=');
+  if(start < 0) throw new Error('harness: missing var ' + name);
+  var d = 0;
+  for(var k = src.indexOf('{', start); k < src.length; k++){
+    if(src[k] === '{') d++;
+    else if(src[k] === '}'){ d--; if(!d) return src.slice(start, k + 2); }
+  }
+  throw new Error('harness: unbalanced braces in var ' + name);
+}
+
+/* Everything an icon call needs: the pinned set, the customs and the emitter. */
+function iconRuntime(src){
+  return varBlock(src, 'LUCIDE') + '\n' + varBlock(src, 'CUSTOM_ICONS') + '\n' +
+         grab(src, 'icon');
+}
+
 /* A localStorage that behaves like the real one for the keys this app uses. */
 function fakeStorage(){
   var store = {};
@@ -55,4 +75,5 @@ function fakeStorage(){
 }
 
 module.exports = { APP: APP, appSource: appSource, rulesRegion: rulesRegion,
-                   grab: grab, fakeStorage: fakeStorage };
+                   grab: grab, varBlock: varBlock, iconRuntime: iconRuntime,
+                   fakeStorage: fakeStorage };

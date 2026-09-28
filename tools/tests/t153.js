@@ -25,19 +25,22 @@ is(histSrc!==''&&daysSrc!==''&&dayLabelSrc!=='',true,'the history line');
 is(fitSrc!=='',true,'the fitter');
 if(fail){ console.log('\n  This build has no status row.\n\nFAILED '+fail+' of '+(pass+fail)); process.exit(1); }
 
+eval(H.iconRuntime(app));      /* CHALK-157: statusIcon now calls icon() */
 eval(iconSrc);
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 eval(cellSrc);
 
 console.log('\n=== 1. THREE SHAPES, one per state ===');
+/* CHALK-157. Assert on the NAME, not on the drawing. The name is what stops
+   the drift, and sniffing a path is exactly the habit that let a modified
+   clock sit here unnoticed. */
 function shapeOf(cls){
-  var svg=statusIcon(cls);
-  if(svg.indexOf('<circle')<0) return 'check';
-  return /12\.8|5\.6 5\.6/.test(svg)?'ban':'clock';
+  var m=/data-icon="([a-z-]+)"/.exec(statusIcon(cls));
+  return m?m[1]:'(unnamed)';
 }
-is(shapeOf('ok'),'check','clear is a tick');
-is(shapeOf('warn'),'clock','back before the next game is a clock');
-is(shapeOf('no'),'ban','missing the next game is a barred circle');
+is(shapeOf('ok'),'check','clear is Lucide check');
+is(shapeOf('warn'),'clock','back before the next game is Lucide clock');
+is(shapeOf('no'),'ban','missing the next game is Lucide ban');
 var shapes=['ok','warn','no'].map(shapeOf);
 is(shapes.length,new Set(shapes).size,'all three are DIFFERENT shapes, not one shape in three colours');
 

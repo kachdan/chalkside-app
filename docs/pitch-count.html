@@ -626,7 +626,10 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 /* CHALK-141. When the half is unknown the glyph slot is EMPTY, and an empty
    flex item still earns the 5px gap. :empty takes it out of layout entirely, so
    an unknown half costs no width and the tag is the same size it was. */
+/* CHALK-157. Sizing lives in CSS like every other icon, rather than as width
+   and height attributes on one of them. */
 .innhalf{display:flex;align-items:center;}
+.innhalf svg{width:8px;height:8px;display:block;}
 .innhalf:empty{display:none;}
 .innpill:active{background:var(--brand-primary);color:var(--text-on-accent);}
 .stateline .belief{
@@ -1311,9 +1314,11 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
              The icon TRAILS, because sharing leaves the app for Messages. A
              trailing icon is an action or a direction; a leading one is
              informational, which is what CHALK-153's status icons are. -->
+        <!-- CHALK-157. Lucide `share`, the box with the arrow leaving it, over
+             `send` and `external-link`. The arrow here was hand drawn. -->
         <button class="btn tertiary" id="shareBtn">Share<svg class="trail"
-          viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7"/><path
-          d="M9 7h8v8"/></svg></button>
+          viewBox="0 0 24 24" data-icon="share" aria-hidden="true"><path
+          d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></svg></button>
       </div>
     </header>
     <hr class="rule">
@@ -1527,7 +1532,7 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
          Count uses "baseball" from Lucide Lab, a separate collection from
          core Lucide, not part of the ISC set credited above. -->
     <button data-go="team" aria-label="Team">
-      <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <svg viewBox="0 0 24 24" data-icon="users"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>
       <span>Team</span></button>
     <!-- CHALK-156. Batting and Log are swapped. The three on the left are the
          GAME, the two on the right are what you do with the results, and it
@@ -1550,16 +1555,16 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
          built from the chalk lines were drawn and rejected; at 22px the extra
          elements become specks, and the label already says Batting. -->
     <button data-go="batting" aria-label="Batting">
-      <svg viewBox="0 0 24 24"><path d="M5 4h14v8l-7 7-7-7Z"/></svg>
+      <svg viewBox="0 0 24 24" data-icon="home-plate"><path d="M5 4h14v8l-7 7-7-7Z"/></svg>
       <span>Batting</span></button>
     <button data-go="count" class="fab on" aria-label="Count">
-      <svg viewBox="0 0 24 24"><path d="M2 12c5.5 0 10-4.5 10-10"/><circle cx="12" cy="12" r="10"/><path d="M22 12c-5.5 0-10 4.5-10 10"/><path d="m8 11.5-1.5-2"/><path d="m11.5 8-2-1.5"/><path d="m14.5 17.5-2-1.5"/><path d="m17.5 14.5-1.5-2"/></svg>
+      <svg viewBox="0 0 24 24" data-icon="baseball"><path d="M2 12c5.5 0 10-4.5 10-10"/><circle cx="12" cy="12" r="10"/><path d="M22 12c-5.5 0-10 4.5-10 10"/><path d="m8 11.5-1.5-2"/><path d="m11.5 8-2-1.5"/><path d="m14.5 17.5-2-1.5"/><path d="m17.5 14.5-1.5-2"/></svg>
     </button>
     <button data-go="log" aria-label="Log">
-      <svg viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+      <svg viewBox="0 0 24 24" data-icon="list"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg>
       <span>Log</span></button>
     <button data-go="settings" aria-label="Settings">
-      <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      <svg viewBox="0 0 24 24" data-icon="settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
       <span>Settings</span></button>
   </nav>
 </div>
@@ -1604,11 +1609,11 @@ if(!S.opp) S.opp=0;
    Keyed off the SAME cls the rules engine already returns, so the shape and the
    colour can never disagree and nothing about eligibility is re-derived here. */
 function statusIcon(cls){
-  if(cls==='ok') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
-  if(cls==='warn') return '<svg viewBox="0 0 24 24" aria-hidden="true">'+
-    '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>';
-  return '<svg viewBox="0 0 24 24" aria-hidden="true">'+
-    '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></svg>';
+  /* CHALK-157. These were MODIFIED Lucide: r=9 and hand-adjusted hands and
+     slash. They are the release's now, by name. */
+  if(cls==='ok') return icon('check');
+  if(cls==='warn') return icon('clock');
+  return icon('ban');
 }
 function statusCell(av){
   return '<span class="status '+av.cls+'">'+statusIcon(av.cls)+
@@ -1666,6 +1671,62 @@ function fitHistoryLines(host){
       if(short&&short!==el_.textContent) el_.textContent=short;
     }
   }
+}
+
+/* CHALK-157. THE ICON SET, named by Lucide's own names.
+ *
+ * Icons drifted between Figma and the app in both directions because nobody was
+ * working from a fixed release and everyone drew their own. The clock and the
+ * barred circle in this file were MODIFIED Lucide, r=9 instead of 10 and hands
+ * at 7v5l3.5 2 instead of 6v6l4 2, which is the kind of difference nobody sees
+ * and everybody copies.
+ *
+ * So: Lucide is pinned at 1.48.0, the release Figma was built from, the files
+ * are in tools/lucide-1.48.0 with the tarball's integrity hash, and every path
+ * below is copied out of them verbatim. tools/check-icons.js compares the two
+ * character for character.
+ *
+ * THE SHARED NAME IS THE MECHANISM. When Figma says ban, the code says ban.
+ * A drawing can be matched by eye and will drift again; a name cannot.
+ *
+ * NEVER DRAW AN ICON. If one is missing, add it from the pinned release, in
+ * Figma and here, under the same name. */
+var LUCIDE={
+  'users':'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/> <path d="M16 3.128a4 4 0 0 1 0 7.744"/> <path d="M22 21v-2a4 4 0 0 0-3-3.87"/> <circle cx="9" cy="7" r="4"/>',
+  'list':'<path d="M3 5h.01"/> <path d="M3 12h.01"/> <path d="M3 19h.01"/> <path d="M8 5h13"/> <path d="M8 12h13"/> <path d="M8 19h13"/>',
+  'settings':'<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/> <circle cx="12" cy="12" r="3"/>',
+  'check':'<path d="M20 6 9 17l-5-5"/>',
+  'clock':'<circle cx="12" cy="12" r="10"/> <path d="M12 6v6l4 2"/>',
+  'ban':'<circle cx="12" cy="12" r="10"/> <path d="M4.929 4.929 19.07 19.071"/>',
+  'share':'<path d="M12 2v13"/> <path d="m16 6-4-4-4 4"/> <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>',
+  'ellipsis-vertical':'<circle cx="12" cy="12" r="1"/> <circle cx="12" cy="5" r="1"/> <circle cx="12" cy="19" r="1"/>',
+  'chevron-right':'<path d="m9 18 6-6-6-6"/>',
+};
+
+/* CUSTOM, not Lucide, and deliberately kept apart from the set above so nobody
+   mistakes them for it. Lucide core has neither, and the bat-ball from
+   @lucide/lab reads as a paddle and a ball at 22px. Same 24 grid, stroke 2,
+   round caps, so they keep the grammar of the rest. */
+var CUSTOM_ICONS={
+  'baseball':'<path d="M2 12c5.5 0 10-4.5 10-10"/><circle cx="12" cy="12" r="10"/>'+
+    '<path d="M22 12c-5.5 0-10 4.5-10 10"/><path d="m8 11.5-1.5-2"/>'+
+    '<path d="m11.5 8-2-1.5"/><path d="m14.5 17.5-2-1.5"/><path d="m17.5 14.5-1.5-2"/>',
+  'home-plate':'<path d="M5 4h14v8l-7 7-7-7Z"/>',
+  /* CHALK-141's half-inning markers. Lucide has no filled half-inning glyph and
+     a stroked chevron at 8px is a smudge, so these are custom, named, and
+     checked like the other two. FILLED rather than stroked for the same reason:
+     at 8px a 2px stroke is most of the shape. Flagged to Dan: they were not in
+     CHALK-157's fourteen. */
+  'half-top':'<path d="M12 5l7 12H5z" fill="currentColor"/>',
+  'half-bottom':'<path d="M12 19l7-12H5z" fill="currentColor"/>'
+};
+
+/* One way to draw one. cls is optional and sizing stays in CSS, as it was. */
+function icon(name,cls){
+  var d=Object.prototype.hasOwnProperty.call(LUCIDE,name)?LUCIDE[name]:CUSTOM_ICONS[name];
+  if(!d) return '';
+  return '<svg'+(cls?' class="'+cls+'"':'')+' viewBox="0 0 24 24" data-icon="'+name+
+         '" aria-hidden="true">'+d+'</svg>';
 }
 
 function jerseyTag(p){
@@ -1934,9 +1995,7 @@ function currentHalf(){
 /* The glyph, and nothing when the half is unknown. Up is top, down is bottom. */
 function halfGlyph(half){
   if(half!=='top'&&half!=='bottom') return '';
-  var d=(half==='top')?'M12 5l7 12H5z':'M12 19l7-12H5z';
-  return '<svg viewBox="0 0 24 24" width="8" height="8" aria-hidden="true">'+
-         '<path d="'+d+'" fill="currentColor"/></svg>';
+  return icon('half-'+half);
 }
 
 /* Every future game the schedule is sure about, soonest first. Ambiguous days
@@ -2948,7 +3007,7 @@ function closeSheet(){
 }
 
 var CHEV='<span class="chev" aria-hidden="true">'+
-  '<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>';
+  icon('chevron-right')+'</span>';
 
 /* The picker is a decision, so it reads as one: a question for a title, the
    ones who can pitch first with a chevron each, and the rest shown below a
@@ -3948,8 +4007,7 @@ function renderGameCard(){
       '<div class="gcwho"><span class="gcopp">'+esc(who)+'</span>'+
         '<span class="gcstate">'+esc(state)+'</span></div>'+
       '<button class="gckebab" id="gameKebab" aria-label="Game options">'+
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1"/>'+
-        '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>'+
+        icon('ellipsis-vertical')+
       '</button>'+
     '</div>'+action;
 }

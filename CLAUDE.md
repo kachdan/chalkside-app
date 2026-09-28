@@ -76,11 +76,28 @@ boundary by definition, so it is wrong for anything that has to be found under
 pressure. **No hover rules anywhere.** A finger does not hover, and on a touch
 device the hover state sticks after the tap and reads as stuck.
 
-Icons: **Lucide** (lucide.dev), ISC licensed, inlined as raw SVG so the app
+Icons: **Lucide, pinned at 1.48.0**, ISC licensed, inlined as raw SVG so the app
 works with no signal at the field. Never load icons from a CDN.
-Current set: `users` (Team), `list` (Log), `clipboard-list` (Roster),
-`settings` (Settings). Count uses `baseball` from **Lucide Lab**, a separate
-collection from core Lucide and not covered by the ISC line above.
+
+**NEVER DRAW AN ICON.** If one is missing, add it from the pinned release, in
+Figma and in the code, under the same name. CHALK-157: the clock and the barred
+circle here were MODIFIED Lucide, r=9 instead of 10 and hands at `M12 7v5l3.5 2`
+instead of `M12 6v6l4 2`. Nobody sees that by eye, everybody copies it, and
+Figma and the app drifted apart in both directions for weeks.
+
+**The shared NAME is the mechanism, not the drawing.** When Figma says `ban`,
+the code says `ban`. A drawing gets matched by eye and drifts again; a name
+cannot. Every icon in the app carries `data-icon="<lucide name>"`.
+
+The release lives in `tools/lucide-1.48.0` with the tarball's integrity hash,
+and `tools/check-icons.js` compares what ships against it character for
+character. It also fails on an unnamed icon and on a name nobody pinned.
+
+Four icons are CUSTOM and are kept apart from the Lucide set so nobody mistakes
+them for it: `baseball` and `home-plate`, because Lucide core has neither and
+the bat-ball from Lucide Lab reads as a paddle at 22px, and `half-top` and
+`half-bottom`, CHALK-141's half-inning markers, which are filled because a 2px
+stroke at 8px is most of the shape.
 
 Count is the raised circle in the centre of the tab bar and carries no label.
 Its active state is the circle deepening to `--primary-dark`; the other four

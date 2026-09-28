@@ -24,6 +24,7 @@ var SCHED_KEY='chalkside_schedule_v1';
 eval(H.grab(app,'schedule'));
 eval(H.grab(app,'setSchedule'));
 eval(H.grab(app,'homeAwayOn'));
+eval(H.iconRuntime(app));      /* CHALK-157: halfGlyph now calls icon() */
 eval(H.grab(app,'halfGlyph'));
 
 var DATE='2026-09-22';
@@ -50,8 +51,10 @@ is(homeAwayOn(DATE),'','a game on a DIFFERENT day');
 is(halfGlyph(''),'','and an unknown half draws nothing at all');
 
 console.log('\n=== 3. the glyph points the right way ===');
-is(halfGlyph('top').indexOf('M12 5l7 12H5z')>-1,true,'top is UP');
-is(halfGlyph('bottom').indexOf('M12 19l7-12H5z')>-1,true,'bottom is DOWN');
+is(/data-icon="half-top"/.test(halfGlyph('top')),true,'top is the half-top marker');
+is(/data-icon="half-bottom"/.test(halfGlyph('bottom')),true,'bottom is half-bottom');
+is(halfGlyph('top').indexOf('M12 5l7 12H5z')>-1,true,'and it still points up');
+is(halfGlyph('bottom').indexOf('M12 19l7-12H5z')>-1,true,'and down');
 
 console.log('\n=== 4. the advance is wired to the half, not to the tab ===');
 var goSrc=H.grab(app,'go');
