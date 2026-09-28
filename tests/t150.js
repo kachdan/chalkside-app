@@ -168,6 +168,18 @@ has(t,'Caught 4 innings','the reason is in the message');
 hasNot(t,'threw','with no outing claimed');
 hasNot(t,'back ','and no return date invented, because rest is not what blocks him');
 
+console.log('\n=== 12. the fallback sentence has to be followable ===');
+/* Where navigator.share AND navigator.clipboard are both missing, which is every
+   insecure origin including the LAN preview, the button says "select the text
+   above". body carries user-select:none, so .sharePrev inherited it and that
+   sentence asked for something the page forbade. Static, because it is CSS. */
+is(app.indexOf('.sharePrev{')>-1,true,'the .sharePrev rule exists at all');
+var prevCss=app.slice(app.indexOf('.sharePrev{'));
+prevCss=prevCss.slice(0,prevCss.indexOf('}'));
+is(/user-select\s*:\s*text/.test(prevCss),true,'.sharePrev opts back in to selection');
+is(/-webkit-user-select\s*:\s*text/.test(prevCss),true,'and does so for iOS Safari too');
+is(/white-space\s*:\s*pre-wrap/.test(prevCss),true,'and keeps the line breaks');
+
 console.log('\n=== 11. plain text, nothing to render ===');
 t=shareText('2026-09-26');
 is(/<[a-z]/i.test(t),false,'no markup');

@@ -1028,6 +1028,12 @@ nav button.fab.on:active{background:var(--brand-primary-strong);}
 /* the preview is the exact text that gets copied, so it is shown as text */
 .sharePrev{
   white-space:pre-wrap;font-size:13px;line-height:1.5;
+  /* body sets user-select:none so tapping the count never selects text. This
+     one block has to opt back in: where navigator.share and navigator.clipboard
+     are both missing, the button says "select the text above", and on an
+     insecure origin that sentence is the ONLY way the message gets out. It was
+     inherited none, so the instruction was impossible to follow. */
+  -webkit-user-select:text;user-select:text;
   background:var(--surface-raised);border:1px solid var(--border-rule);
   border-radius:var(--radius-md);padding:var(--space-12);
   max-height:38vh;overflow:auto;

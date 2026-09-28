@@ -712,10 +712,17 @@ path if it is not already in the session; it is not written down here.
 After any turn that changes code, hits a problem, or needs a decision from
 Dan, write a handoff to `chalkside-handoff-out.md`.
 
-Overwrite that one file every time, never append, never add dated copies.
-Under 40 lines. Plain markdown, no terminal formatting, no box drawing.
-Cover what changed and in which files, what was verified, anything that
-failed or is uncertain, and the specific question if there is one.
+APPEND a new `## CHALK-NNN` section to that file. Never overwrite it, never
+add dated copies. One section per ticket, newest at the bottom, and the earlier
+sections stay exactly as they were.
+
+The rule used to say overwrite. That lost three ticket reports in a row and
+Barry had to verify them from the live file, so it was changed. If the file is
+getting long, that is the file doing its job; do not tidy it.
+
+Under 40 lines PER SECTION. Plain markdown, no terminal formatting, no box
+drawing. Cover what changed and in which files, what was verified, anything
+that failed or is uncertain, and the specific question if there is one.
 
 Then say in one line that the handoff is written. Nothing more.
 
