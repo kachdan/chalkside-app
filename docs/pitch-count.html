@@ -1529,12 +1529,14 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
     <button data-go="team" aria-label="Team">
       <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span>Team</span></button>
-    <button data-go="log" aria-label="Log">
-      <svg viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
-      <span>Log</span></button>
-    <button data-go="count" class="fab on" aria-label="Count">
-      <svg viewBox="0 0 24 24"><path d="M2 12c5.5 0 10-4.5 10-10"/><circle cx="12" cy="12" r="10"/><path d="M22 12c-5.5 0-10 4.5-10 10"/><path d="m8 11.5-1.5-2"/><path d="m11.5 8-2-1.5"/><path d="m14.5 17.5-2-1.5"/><path d="m17.5 14.5-1.5-2"/></svg>
-    </button>
+    <!-- CHALK-156. Batting and Log are swapped. The three on the left are the
+         GAME, the two on the right are what you do with the results, and it
+         puts Batting next to the pitching button, which is the pair he switches
+         between every half inning.
+
+         Order only. Nothing here is found by position: every tab is keyed off
+         data-go, and the FAB is centred by being the middle child, which it
+         still is. -->
     <!-- CHALK-111 takes the slot CHALK-127 freed.
 
          icon: homePlate. CUSTOM, not Lucide. Lucide has no home plate in core
@@ -1550,6 +1552,12 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
     <button data-go="batting" aria-label="Batting">
       <svg viewBox="0 0 24 24"><path d="M5 4h14v8l-7 7-7-7Z"/></svg>
       <span>Batting</span></button>
+    <button data-go="count" class="fab on" aria-label="Count">
+      <svg viewBox="0 0 24 24"><path d="M2 12c5.5 0 10-4.5 10-10"/><circle cx="12" cy="12" r="10"/><path d="M22 12c-5.5 0-10 4.5-10 10"/><path d="m8 11.5-1.5-2"/><path d="m11.5 8-2-1.5"/><path d="m14.5 17.5-2-1.5"/><path d="m17.5 14.5-1.5-2"/></svg>
+    </button>
+    <button data-go="log" aria-label="Log">
+      <svg viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+      <span>Log</span></button>
     <button data-go="settings" aria-label="Settings">
       <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       <span>Settings</span></button>
