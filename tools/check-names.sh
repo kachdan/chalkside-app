@@ -21,7 +21,20 @@ js=''.join(re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', s, re.S))
 js=re.sub(r'/\*.*?\*/','',js,flags=re.S)
 js=re.sub(r'//[^\n]*','',js)
 
-funcs=set(re.findall(r'\bfunction\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(', js))
+names=re.findall(r'\bfunction\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(', js)
+funcs=set(names)
+
+# CHALK-159. A function declared TWICE is valid JavaScript and silently keeps
+# the last one, so neither node --check nor the shadowing test above says a
+# word. It happened while building the scoreboard: newBatter already existed on
+# the Batting screen and a second identical copy went in beside addOut. Harmless
+# that time because the bodies matched. The next one will not match.
+seen={}
+dupes=[]
+for n in names:
+    seen[n]=seen.get(n,0)+1
+for n in sorted(seen):
+    if seen[n]>1: dupes.append((n,seen[n]))
 assigned=set(re.findall(r'\b(?:var|let|const)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=', js))
 assigned |= set(re.findall(r'^\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*function', js, re.M))
 
@@ -30,6 +43,12 @@ ids=set(re.findall(r'''\bid=["']([A-Za-z0-9_-]+)["']''',s))
 idclash=sorted(ids & funcs)
 
 bad=False
+if dupes:
+    print('FUNCTION DECLARED MORE THAN ONCE (the last one silently wins):')
+    for n,c in dupes: print('  %s  declared %d times'%(n,c))
+    bad=True
+else:
+    print('functions declared twice: none  (%d declarations checked)'%len(names))
 if shadowed:
     print('FUNCTION SILENTLY OVERWRITTEN BY AN ASSIGNMENT:')
     for n in shadowed: print('  %s  is both "function %s(" and an assignment'%(n,n))

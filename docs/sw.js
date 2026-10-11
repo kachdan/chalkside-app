@@ -16,7 +16,7 @@
    survived every test that was not run on the phone.
 
    A version that has to be remembered gets forgotten. This one is computed. */
-var BUILD = '64a6b1aef0bc';
+var BUILD = '7b65d663f1cc';
 var CACHE = 'chalkside-' + BUILD;
 
 /* ChalkSide service worker.
