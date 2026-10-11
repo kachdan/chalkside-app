@@ -94,10 +94,19 @@ var BREAKS=[
    "  e.preventDefault(); e.stopPropagation();\n  boardAction(t);",
    "  e.preventDefault();\n  boardAction(t);",
    'Enter on a focused scoreboard cell falls through to the global handler and adds a pitch'],
+  /* CHALK-159 revised: the row sits BELOW the zone now, so the gap that
+     protects the pitch count is the row's top padding. Same break, new home. */
   ['scoreboard-gap-gone.html',
-   "flex:1;min-height:0;margin:var(--space-12) 0 var(--space-16);",
-   "flex:1;min-height:0;margin:0 0 var(--space-16);",
-   'the 12px gap between the row and the zone is gone, so a low tap on Out lands on the zone'],
+   ".sbwrap{padding:var(--space-16) var(--space-16) 22px;}",
+   ".sbwrap{padding:0 var(--space-16) 22px;}",
+   'the 16px gap above the row is gone, so a thumb coming off the zone lands on a call'],
+  /* CHALK-159 revised. #countLive is a flex column, so this really does put the
+     row back above the zone on screen while the markup, and the tab order,
+     still say otherwise. Reading order and tab order silently disagree. */
+  ['scoreboard-css-reorder.html',
+   ".sbwrap{padding:var(--space-16) var(--space-16) 22px;}",
+   ".sbwrap{order:-1;padding:var(--space-16) var(--space-16) 22px;}",
+   'the row is moved back above the zone in CSS, so tab order no longer matches what is on screen'],
   ['new-batter-clears-outs.html',
    "  c.b=0; c.s=0;\n  save(); renderBatting();",
    "  c.b=0; c.s=0; c.o=0;\n  save(); renderBatting();",

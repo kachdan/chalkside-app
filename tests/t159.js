@@ -138,15 +138,38 @@ var kd=app.slice(i,i+520);
 is(/stopPropagation\(\)/.test(kd),true,'which stops the event reaching the global pitch key handler');
 is(/preventDefault\(\)/.test(kd),true,'and prevents the default label activation');
 
-console.log('\n=== 11. the gap below the row is real ===');
-/* The 12px is what keeps a low tap on Out off the pitch zone. Measured for
-   real in the browser; asserted here so it cannot be deleted silently. */
+console.log('\n=== 11. the gap between the row and the zone is real ===');
+/* REVISED. The row moved BELOW the zone so the screen reads in the order things
+   happen, so the protection gap moved with it and is now the row's TOP padding.
+   These assertions were not deleted with the move: the gap is the one number
+   that keeps a thumb coming off the zone from landing on a call, and a build
+   with no gap has to fail here. Measured for real in the browser too. */
 var tz=app.slice(app.indexOf('.tapzone{'));
 tz=tz.slice(0,tz.indexOf('}'));
-is(/margin:var\(--space-12\) 0 var\(--space-16\)/.test(tz),true,'the zone keeps a 12px top margin');
+is(/margin:var\(--space-12\) 0 0/.test(tz),true,'the zone keeps its 12px from the ribbon and gives nothing below');
 var wrap=app.slice(app.indexOf('.sbwrap{'));
 wrap=wrap.slice(0,wrap.indexOf('}'));
-is(/padding:var\(--space-12\) var\(--space-16\) 0/.test(wrap),true,'and the row sits clear of the ribbon');
+is(/padding:var\(--space-16\) var\(--space-16\) 22px/.test(wrap),true,
+   'and the row carries the 16px gap above it, with Dan\'s 22 to the verdict below');
+var topPad=(wrap.match(/padding:\s*([^\s;]+)/)||[])[1];
+is(topPad,'var(--space-16)','and the gap above the row is specifically not 0  ['+topPad+']');
+
+console.log('\n=== 11b. the ORDER, which is the whole revision ===');
+/* The zone must come before the row in the MARKUP, not just visually. Tab order
+   follows the DOM, so reading order and tab order are the same fact. A CSS-only
+   reorder would have left a coach tabbing backwards up the screen. */
+var zoneAt=app.indexOf('class="tapzone"');
+var rowAt=app.indexOf('class="sbwrap"');
+var verdictAt=app.indexOf('class="verdict"');
+is(zoneAt>-1&&rowAt>-1&&verdictAt>-1,true,'all three are present');
+is(zoneAt<rowAt,true,'the pitch zone comes before the scoreboard row');
+is(rowAt<verdictAt,true,'and the row comes before the verdict');
+is(/flex-direction:\s*column-reverse/.test(app),false,'and nothing reorders them in CSS behind the markup');
+/* #countLive is a flex column, so `order:` on the row WOULD move it visually and
+   leave the DOM, and therefore the tab order, pointing the other way. That is
+   the exact divergence this revision exists to avoid, so it is asserted rather
+   than assumed. Written to not trip over `border:`. */
+is(/(^|[;{\s])order\s*:/.test(wrap),false,'and the row does not reposition itself with order:');
 
 console.log('\n=== 12. built from tokens, so Dark is free ===');
 var sb=app.slice(app.indexOf('/* ---------- CHALK-159'),app.indexOf('.taphint{'));

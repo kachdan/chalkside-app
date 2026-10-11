@@ -382,11 +382,12 @@ input,select{
      opens a gap above and below without eating into the zone's own height.
      CHALK-146: 16, not 32. Dan's frame says 16 and the 32 was stacking with the
      verdict's reserved box into a 47px hole above the sentence. */
-  /* CHALK-159. Top margin is 12, not 16, and it is the ONLY thing between the
-     scoreboard row and this zone. That gap is what stops a low tap on Out from
-     landing on the pitch count, so it is measured on the rendered page, not
-     read off this line. Bottom stays 16 (CHALK-146, Dan's frame). */
-  flex:1;min-height:0;margin:var(--space-12) 0 var(--space-16);
+  /* CHALK-159 revised. 12 above, from the ribbon, which is Dan's frame.
+     NOTHING below: the gap under the zone belongs to .sbwrap's top padding
+     now, so the one number that protects the pitch count lives in one place
+     and is measured on the rendered page rather than read off a line here.
+     The old 16 below (CHALK-146) is still 16, it just moved house. */
+  flex:1;min-height:0;margin:var(--space-12) 0 0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   background:var(--surface-raised);border:0;border-radius:16px;width:100%;padding:0;
   position:relative;
@@ -412,7 +413,14 @@ input,select{
 /* ---------- CHALK-159, the opponent count ---------- */
 /* Every colour here is a token, and that is what makes Dark free: the Figma
    row and the dark board are the same component with the same token names. */
-.sbwrap{padding:var(--space-12) var(--space-16) 0;}
+/* CHALK-159 revised. The 16 on TOP is the protection gap: it moved with the
+   row, because the edge that matters is the one a thumb crosses coming off the
+   zone, and that is now the row's top edge.
+   The 22 below is Dan's frame, row to verdict text. It is composed there from
+   the row wrap's 10 and the verdict's 12, and .verdict has no top padding, so
+   it is one number here instead of two. There is no 22 token and inventing one
+   for a single use would be worse than the literal. */
+.sbwrap{padding:var(--space-16) var(--space-16) 22px;}
 .sb{
   display:flex;align-items:center;
   background:var(--surface-raised);
@@ -1324,14 +1332,37 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
         <div class="ticks"><span>0 rest</span><span>1 day</span><span>2 days</span><span>3 days</span></div>
       </div>
 
-      <!-- CHALK-159. The opponent's count, so Dan can answer when John asks.
-           ABOVE the zone: the zone is still the main job and keeps the thumb.
+      <!-- CHALK-138. A LABEL, not a button, and that is the whole hypothesis.
+           The iOS haptic is a side effect of a native switch, and the first
+           attempt toggled that switch from script inside the tap handler, which
+           produced nothing on Dan's phone. A label puts the user's own finger on
+           the native control: the toggle becomes his gesture rather than a
+           dispatched one.
+
+           Space and Enter still count a pitch through the global key handler
+           below, so nothing is lost by this not being a button. -->
+      <label class="tapzone" id="tapzone" for="hapPitch" role="button"
+             aria-label="Add a pitch">
+        <div class="count safe" id="countNum">0</div>
+        <div class="taphint" id="tapHint">Tap anywhere to add a pitch</div>
+      </label>
+
+      <!-- CHALK-159 revised. The opponent's count, so Dan can answer when John
+           asks. BELOW the zone, and the order is the point: the pitch gets
+           tapped in the zone, then the call gets tapped underneath it. With the
+           row on top his eyes went down and back up on every single pitch.
+
+           It is also why this block sits after the zone in the MARKUP rather
+           than being moved with CSS. Tab order follows the DOM, so reading
+           order and tab order stay the same thing without a second rule to
+           keep in sync.
 
            THE ONE RULE THIS WHOLE ROW LIVES UNDER: none of these four adds a
-           pitch. Only the zone below does. They are separate targets with a
-           12px gap, and they call the same addBall/addStrike/addOut the
-           Batting tiles call, so the walk, the strikeout and the third out
-           cannot drift between the two screens.
+           pitch. Only the zone does. They are separate targets with a 16px gap
+           between them, now ABOVE the row because that is the edge a thumb
+           coming off the zone crosses, and they call the same addBall/
+           addStrike/addOut the Batting tiles call, so the walk, the strikeout
+           and the third out cannot drift between the two screens.
 
            40 tall, knowingly under the 44 floor in HEIGHT only: Dan chose it
            seeing the number, and each cell is full width of its share of the
@@ -1368,21 +1399,6 @@ label.tapzone,label.tile,label.btn{cursor:pointer;}
           </label>
         </div>
       </div>
-
-      <!-- CHALK-138. A LABEL, not a button, and that is the whole hypothesis.
-           The iOS haptic is a side effect of a native switch, and the first
-           attempt toggled that switch from script inside the tap handler, which
-           produced nothing on Dan's phone. A label puts the user's own finger on
-           the native control: the toggle becomes his gesture rather than a
-           dispatched one.
-
-           Space and Enter still count a pitch through the global key handler
-           below, so nothing is lost by this not being a button. -->
-      <label class="tapzone" id="tapzone" for="hapPitch" role="button"
-             aria-label="Add a pitch">
-        <div class="count safe" id="countNum">0</div>
-        <div class="taphint" id="tapHint">Tap anywhere to add a pitch</div>
-      </label>
 
       <div class="verdict" id="verdict"></div>
 
